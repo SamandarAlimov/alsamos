@@ -1,0 +1,93 @@
+# ALSAMOS Corporation - robots.txt
+# https://alsamos.com
+# Last updated: 2026-01-18
+
+# Google
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Googlebot-Video
+Allow: /
+
+# Bing
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# Yandex (for Russian-speaking users)
+User-agent: Yandex
+Allow: /
+Crawl-delay: 2
+
+# Baidu
+User-agent: Baiduspider
+Allow: /
+Crawl-delay: 3
+
+# Social Media Bots
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+User-agent: TelegramBot
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+# DuckDuckGo
+User-agent: DuckDuckBot
+Allow: /
+Crawl-delay: 2
+
+# Apple
+User-agent: Applebot
+Allow: /
+
+# Default for all other bots
+User-agent: *
+Allow: /
+Crawl-delay: 2
+
+# Sitemap locations
+Sitemap: https://alsamos.com/sitemap.xml
+
+# Disallow admin and private paths
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth
+Disallow: /*.json$
+Disallow: /*?*
+Disallow: /*/admin
+
+# Allow specific query parameters for language
+Allow: /?lang=
+Allow: /*?lang=en
+Allow: /*?lang=uz
+Allow: /*?lang=ru
+
+# Block bad bots known for scraping
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
