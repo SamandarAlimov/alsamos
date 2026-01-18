@@ -1,5 +1,13 @@
 {
   "rewrites": [
+    {
+      "source": "/((?!api|_next|static|favicon.ico|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+{
+  "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
