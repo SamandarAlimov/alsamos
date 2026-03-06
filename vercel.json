@@ -1,12 +1,9 @@
 {
   "rewrites": [
-<<<<<<< HEAD
-    { "source": "/sitemap.xml", "destination": "https://oeeofzuooeruzunldfcq.supabase.co/functions/v1/sitemap" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ],
-  "headers": [
-=======
->>>>>>> c14d6e9a0e20eeb51f7977315d4b845878679682
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://oeeofzuooeruzunldfcq.supabase.co/functions/v1/sitemap"
+    },
     {
       "source": "/((?!api|_next|static|favicon.ico|.*\\..*).*)",
       "destination": "/index.html"
