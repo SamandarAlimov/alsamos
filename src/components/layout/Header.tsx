@@ -248,7 +248,7 @@ export const Header = () => {
               exit={{ opacity: 0, y: -10 }}
               onMouseEnter={() => setIsIndustriesOpen(true)}
               onMouseLeave={() => setIsIndustriesOpen(false)}
-              className="absolute left-0 right-0 top-full bg-card/98 backdrop-blur-xl border-b border-border shadow-2xl hidden lg:block"
+              className="absolute left-0 right-0 top-full bg-card backdrop-blur-xl border-b border-border shadow-2xl hidden lg:block"
             >
               <div className="container mx-auto px-8 py-8">
                 <div className="flex items-center justify-between mb-6">
@@ -321,7 +321,7 @@ export const Header = () => {
                 </nav>
 
                 <div className="mt-8 pt-8 border-t border-border">
-                  <p className="text-sm text-muted-foreground mb-4">Quick Industries</p>
+                  <p className="text-sm text-muted-foreground mb-4">{t("header.quick_industries")}</p>
                   <div className="grid grid-cols-2 gap-2">
                     {sectors.slice(0, 8).map((sector) => {
                       const IconComponent = iconMap[sector.icon] || Monitor;

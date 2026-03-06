@@ -26,7 +26,7 @@ const Products = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const seo = useSeoMeta("products");
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -44,8 +44,6 @@ const Products = () => {
         <meta name="keywords" content={seo.keywords} />
         <link rel="canonical" href="https://alsamos.com/products" />
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-        
-        {/* Open Graph */}
         <meta property="og:title" content={seo.ogTitle} />
         <meta property="og:description" content={seo.ogDescription} />
         <meta property="og:type" content="website" />
@@ -55,15 +53,11 @@ const Products = () => {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:locale" content={getLocaleCode(language)} />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:site" content="@AlsamosOfficial" />
         <meta name="twitter:title" content={seo.ogTitle} />
         <meta name="twitter:description" content={seo.ogDescription} />
         <meta name="twitter:image" content="https://alsamos.com/og-products.png" />
-        
-        {/* JSON-LD Structured Data - ItemList for Products */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -78,11 +72,7 @@ const Products = () => {
                 { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://alsamos.com/products" }
               ]
             },
-            "isPartOf": {
-              "@type": "WebSite",
-              "name": "ALSAMOS",
-              "url": "https://alsamos.com"
-            },
+            "isPartOf": { "@type": "WebSite", "name": "ALSAMOS", "url": "https://alsamos.com" },
             "mainEntity": {
               "@type": "ItemList",
               "name": "ALSAMOS Product Catalog",
@@ -120,14 +110,13 @@ const Products = () => {
               >
                 <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary/10 border border-primary/20 mb-4 sm:mb-6">
                   <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-medium text-primary">Innovation Portfolio</span>
+                  <span className="text-xs sm:text-sm font-medium text-primary">{t("products.badge")}</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
-                  Products & <span className="text-primary">Solutions</span>
+                  {t("products.title_1")}<span className="text-primary">{t("products.title_2")}</span>
                 </h1>
                 <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto px-2">
-                  Discover our comprehensive range of innovative products designed to transform 
-                  industries and empower businesses worldwide.
+                  {t("products.subtitle")}
                 </p>
               </motion.div>
             </div>
@@ -142,7 +131,7 @@ const Products = () => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder="Search products..."
+                      placeholder={t("products.search")}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-9 sm:pl-10 h-10 sm:h-11 text-sm"
@@ -152,7 +141,7 @@ const Products = () => {
                     trigger={
                       <Button variant="secondary" size="sm" className="gap-2 h-10 sm:h-11 text-xs sm:text-sm">
                         <GitCompare className="w-4 h-4" />
-                        <span className="hidden xs:inline">Compare</span> Products
+                        {t("products.compare")}
                       </Button>
                     }
                   />
@@ -191,7 +180,6 @@ const Products = () => {
                         className="group"
                       >
                         <div className="glass-card rounded-xl sm:rounded-2xl overflow-hidden h-full flex flex-col">
-                          {/* Product Visual */}
                           <div className={`relative h-36 sm:h-48 bg-gradient-to-br ${product.gradient} p-6 sm:p-8 flex items-center justify-center`}>
                             <div className="absolute inset-0 bg-black/10" />
                             {IconComponent && (
@@ -203,8 +191,6 @@ const Products = () => {
                               </span>
                             </div>
                           </div>
-
-                          {/* Product Info */}
                           <div className="p-4 sm:p-6 flex-1 flex flex-col">
                             <h3 className="text-lg sm:text-xl font-bold mb-1.5 sm:mb-2 group-hover:text-primary transition-colors">
                               {product.name}
@@ -213,29 +199,20 @@ const Products = () => {
                             <p className="text-muted-foreground text-xs sm:text-sm mb-3 sm:mb-4 flex-1 line-clamp-3">
                               {product.description}
                             </p>
-
-                            {/* Features Preview */}
                             <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
                               {product.features.slice(0, 3).map((feature, idx) => (
-                                <span 
-                                  key={idx}
-                                  className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-muted text-[10px] sm:text-xs text-muted-foreground"
-                                >
+                                <span key={idx} className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-muted text-[10px] sm:text-xs text-muted-foreground">
                                   {feature}
                                 </span>
                               ))}
                             </div>
-
-                            {/* Price & CTA */}
                             <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-border">
-                              <span className="text-xs sm:text-sm font-semibold text-primary">
-                                {product.price}
-                              </span>
+                              <span className="text-xs sm:text-sm font-semibold text-primary">{product.price}</span>
                               <Link
                                 to={`/products/${product.slug}`}
                                 className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-foreground hover:text-primary transition-colors"
                               >
-                                Learn More
+                                {t("products.learn_more")}
                                 <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
                               </Link>
                             </div>
@@ -247,13 +224,13 @@ const Products = () => {
                 </div>
               ) : (
                 <div className="text-center py-16">
-                  <p className="text-xl text-muted-foreground">No products found matching your criteria.</p>
+                  <p className="text-xl text-muted-foreground">{t("products.no_results")}</p>
                   <Button 
                     variant="outline" 
                     className="mt-4"
                     onClick={() => { setSearchQuery(""); setSelectedCategory("All"); }}
                   >
-                    Clear Filters
+                    {t("products.clear_filters")}
                   </Button>
                 </div>
               )}
@@ -269,19 +246,14 @@ const Products = () => {
                 viewport={{ once: true }}
                 className="max-w-2xl mx-auto"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                  Need a Custom Solution?
-                </h2>
-                <p className="text-lg text-muted-foreground mb-8">
-                  Our team of experts can help you find the perfect product or create a 
-                  tailored solution for your specific needs.
-                </p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("products.custom_title")}</h2>
+                <p className="text-lg text-muted-foreground mb-8">{t("products.custom_desc")}</p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Button asChild size="lg">
-                    <Link to="/contact">Contact Sales</Link>
+                    <Link to="/contact">{t("products.contact_sales")}</Link>
                   </Button>
                   <Button asChild variant="outline" size="lg">
-                    <Link to="/industries">Explore Industries</Link>
+                    <Link to="/industries">{t("products.explore_industries")}</Link>
                   </Button>
                 </div>
               </motion.div>

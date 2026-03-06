@@ -40,12 +40,13 @@ const Index = () => {
         <meta name="twitter:description" content={seo.ogDescription} />
         <meta name="twitter:image" content="https://alsamos.com/og-image.png" />
         
-        {/* JSON-LD Structured Data */}
+        {/* JSON-LD Structured Data - Organization */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Organization",
             "name": "ALSAMOS Corporation",
+            "alternateName": "ALSAMOS",
             "url": "https://alsamos.com",
             "logo": "https://alsamos.com/logo.png",
             "sameAs": [
@@ -56,10 +57,52 @@ const Index = () => {
               "https://facebook.com/AlsamosOfficial",
               "https://t.me/alsamos"
             ],
-            "contactPoint": {
-              "@type": "ContactPoint",
-              "telephone": "+998901234567",
-              "contactType": "customer service"
+            "contactPoint": [
+              {
+                "@type": "ContactPoint",
+                "telephone": "+998933007709",
+                "contactType": "customer service",
+                "availableLanguage": ["English", "Russian", "Uzbek"]
+              },
+              {
+                "@type": "ContactPoint",
+                "email": "investors@alsamos.com",
+                "contactType": "investor relations"
+              }
+            ],
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Tashkent",
+              "addressCountry": "UZ"
+            },
+            "foundingDate": "2019",
+            "founder": {
+              "@type": "Person",
+              "name": "Samandar Alimov"
+            },
+            "numberOfEmployees": {
+              "@type": "QuantitativeValue",
+              "minValue": 1000
+            },
+            "knowsAbout": ["Technology", "AI", "Healthcare", "Education", "Automotive", "Aerospace", "Robotics", "Finance"]
+          })}
+        </script>
+        
+        {/* JSON-LD - WebSite with SearchAction for sitelinks searchbox */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "ALSAMOS",
+            "alternateName": "ALSAMOS Corporation",
+            "url": "https://alsamos.com",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://alsamos.com/products?q={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
             }
           })}
         </script>

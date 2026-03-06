@@ -17,7 +17,7 @@ const News = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const seo = useSeoMeta("news");
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
 
   const filteredArticles = newsArticles.filter(article => {
     const matchesSearch = article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -38,8 +38,6 @@ const News = () => {
         <meta name="keywords" content={seo.keywords} />
         <link rel="canonical" href="https://alsamos.com/news" />
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-        
-        {/* Open Graph */}
         <meta property="og:title" content={seo.ogTitle} />
         <meta property="og:description" content={seo.ogDescription} />
         <meta property="og:type" content="website" />
@@ -49,15 +47,11 @@ const News = () => {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:locale" content={getLocaleCode(language)} />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:site" content="@AlsamosOfficial" />
         <meta name="twitter:title" content={seo.ogTitle} />
         <meta name="twitter:description" content={seo.ogDescription} />
         <meta name="twitter:image" content="https://alsamos.com/og-news.png" />
-        
-        {/* JSON-LD Structured Data - ItemList for News */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -72,11 +66,7 @@ const News = () => {
                 { "@type": "ListItem", "position": 2, "name": "News", "item": "https://alsamos.com/news" }
               ]
             },
-            "isPartOf": {
-              "@type": "WebSite",
-              "name": "ALSAMOS",
-              "url": "https://alsamos.com"
-            },
+            "isPartOf": { "@type": "WebSite", "name": "ALSAMOS", "url": "https://alsamos.com" },
             "mainEntity": {
               "@type": "ItemList",
               "name": "Latest ALSAMOS News",
@@ -114,14 +104,13 @@ const News = () => {
               >
                 <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary/10 border border-primary/20 mb-4 sm:mb-6">
                   <Newspaper className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-medium text-primary">News & Insights</span>
+                  <span className="text-xs sm:text-sm font-medium text-primary">{t("news.badge")}</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
-                  Latest <span className="text-primary">Updates</span>
+                  {t("news.title_1")}<span className="text-primary">{t("news.title_2")}</span>
                 </h1>
                 <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto px-2">
-                  Stay informed with the latest news, insights, and announcements from 
-                  ALSAMOS and the industries we serve.
+                  {t("news.subtitle")}
                 </p>
               </motion.div>
             </div>
@@ -135,7 +124,7 @@ const News = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                   <Input
                     type="search"
-                    placeholder="Search articles..."
+                    placeholder={t("news.search")}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9 sm:pl-10 h-10 sm:h-11 text-sm"
@@ -162,7 +151,7 @@ const News = () => {
           {featuredArticles.length > 0 && (
             <section className="py-16">
               <div className="container mx-auto px-4">
-                <h2 className="text-2xl font-bold mb-8">Featured Stories</h2>
+                <h2 className="text-2xl font-bold mb-8">{t("news.featured_stories")}</h2>
                 <div className="grid lg:grid-cols-2 gap-8">
                   {featuredArticles.slice(0, 2).map((article, index) => (
                     <motion.article
@@ -181,7 +170,7 @@ const News = () => {
                             </div>
                             <div className="absolute top-4 left-4">
                               <span className="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                                Featured
+                                {t("news.featured")}
                               </span>
                             </div>
                           </div>
@@ -190,21 +179,17 @@ const News = () => {
                               <span className="text-primary font-medium">{article.category}</span>
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-4 h-4" />
-                                {new Date(article.date).toLocaleDateString('en-US', { 
-                                  month: 'short', day: 'numeric', year: 'numeric' 
-                                })}
+                                {new Date(article.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </span>
                               <span className="flex items-center gap-1">
                                 <Clock className="w-4 h-4" />
                                 {article.readTime}
                               </span>
                             </div>
-                            <h3 className="text-xl font-bold mb-3 group-hover:text-primary transition-colors">
-                              {article.title}
-                            </h3>
+                            <h3 className="text-xl font-bold mb-3 group-hover:text-primary transition-colors">{article.title}</h3>
                             <p className="text-muted-foreground mb-4">{article.excerpt}</p>
                             <span className="inline-flex items-center gap-2 text-primary font-medium">
-                              Read More
+                              {t("news.read_more")}
                               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </span>
                           </div>
@@ -220,7 +205,7 @@ const News = () => {
           {/* All Articles */}
           <section className="py-16 lg:py-24 bg-muted/50">
             <div className="container mx-auto px-4">
-              <h2 className="text-2xl font-bold mb-8">All Articles</h2>
+              <h2 className="text-2xl font-bold mb-8">{t("news.all_articles")}</h2>
               {regularArticles.length > 0 ? (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {regularArticles.map((article, index) => (
@@ -244,17 +229,11 @@ const News = () => {
                               <span className="text-primary font-medium">{article.category}</span>
                               <span>{article.readTime}</span>
                             </div>
-                            <h3 className="font-bold mb-2 group-hover:text-primary transition-colors flex-1">
-                              {article.title}
-                            </h3>
-                            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                              {article.excerpt}
-                            </p>
+                            <h3 className="font-bold mb-2 group-hover:text-primary transition-colors flex-1">{article.title}</h3>
+                            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{article.excerpt}</p>
                             <div className="flex items-center justify-between pt-4 border-t border-border">
                               <span className="text-xs text-muted-foreground">
-                                {new Date(article.date).toLocaleDateString('en-US', { 
-                                  month: 'short', day: 'numeric', year: 'numeric' 
-                                })}
+                                {new Date(article.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </span>
                               <ArrowRight className="w-4 h-4 text-primary group-hover:translate-x-1 transition-transform" />
                             </div>
@@ -266,13 +245,13 @@ const News = () => {
                 </div>
               ) : (
                 <div className="text-center py-16">
-                  <p className="text-xl text-muted-foreground">No articles found matching your criteria.</p>
+                  <p className="text-xl text-muted-foreground">{t("news.no_results")}</p>
                   <Button 
                     variant="outline" 
                     className="mt-4"
                     onClick={() => { setSearchQuery(""); setSelectedCategory("All"); }}
                   >
-                    Clear Filters
+                    {t("news.clear_filters")}
                   </Button>
                 </div>
               )}
@@ -288,16 +267,11 @@ const News = () => {
                 viewport={{ once: true }}
                 className="max-w-2xl mx-auto"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                  Stay Informed
-                </h2>
-                <p className="text-lg text-muted-foreground mb-8">
-                  Subscribe to our newsletter for the latest updates, insights, and 
-                  exclusive content delivered directly to your inbox.
-                </p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("news.stay_informed")}</h2>
+                <p className="text-lg text-muted-foreground mb-8">{t("news.newsletter_desc")}</p>
                 <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-                  <Input type="email" placeholder="Enter your email" className="flex-1" />
-                  <Button>Subscribe</Button>
+                  <Input type="email" placeholder={t("news.email_placeholder")} className="flex-1" />
+                  <Button>{t("news.subscribe")}</Button>
                 </div>
               </motion.div>
             </div>

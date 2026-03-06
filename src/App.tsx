@@ -9,6 +9,7 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { AuthProvider } from "./hooks/useAuth";
 import { PageTransition } from "./components/PageTransition";
 import PageLoader from "./components/PageLoader";
+import { GoogleAnalytics } from "./components/seo/GoogleAnalytics";
 
 // Lazy load pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -90,6 +91,7 @@ const App = () => (
       <AuthProvider>
         <LanguageProvider>
           <TooltipProvider>
+            <GoogleAnalytics measurementId="G-XXXXXXXXXX" />
             <Toaster />
             <Sonner />
             <BrowserRouter>

@@ -22,6 +22,23 @@
     <meta name="apple-mobile-web-app-title" content="ALSAMOS" />
     <meta name="format-detection" content="telephone=no" />
     
+    <!-- Search Engine Verification -->
+    <meta name="google-site-verification" content="YOUR_GOOGLE_VERIFICATION_CODE" />
+    <meta name="yandex-verification" content="YOUR_YANDEX_VERIFICATION_CODE" />
+    <meta name="msvalidate.01" content="YOUR_BING_VERIFICATION_CODE" />
+    
+    <!-- Google Analytics GA4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX', {
+        send_page_view: true,
+        cookie_flags: 'SameSite=None;Secure'
+      });
+    </script>
+    
     <!-- Geo Tags -->
     <meta name="geo.region" content="UZ" />
     <meta name="geo.placename" content="Tashkent" />

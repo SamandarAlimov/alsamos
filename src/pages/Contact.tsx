@@ -20,12 +20,21 @@ import HreflangTags from "@/components/seo/HreflangTags";
 import { useSeoMeta, getLocaleCode } from "@/hooks/useSeoMeta";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const contactCategories = [
-  { icon: MessageSquare, title: "General Inquiry", description: "Questions about ALSAMOS" },
-  { icon: Briefcase, title: "Business Partnership", description: "Partnership opportunities" },
-  { icon: Headphones, title: "Customer Support", description: "Help with our products" },
-  { icon: Users, title: "Careers", description: "Job opportunities" },
-  { icon: Building, title: "Investor Relations", description: "Investment inquiries" },
+const socialLinks = [
+  { icon: Linkedin, href: "https://www.linkedin.com/in/alsamos/", label: "LinkedIn" },
+  { icon: Instagram, href: "https://instagram.com/alsamosofficial", label: "Instagram" },
+  { icon: Youtube, href: "https://youtube.com/alsamos", label: "YouTube" },
+  { icon: Twitter, href: "https://x.com/AlsamosOfficial", label: "X (Twitter)" },
+  { icon: Facebook, href: "https://facebook.com/AlsamosOfficial", label: "Facebook" },
+];
+
+const faqKeys = [
+  { q: "contact.faq_q1", a: "contact.faq_a1" },
+  { q: "contact.faq_q2", a: "contact.faq_a2" },
+  { q: "contact.faq_q3", a: "contact.faq_a3" },
+  { q: "contact.faq_q4", a: "contact.faq_a4" },
+  { q: "contact.faq_q5", a: "contact.faq_a5" },
+  { q: "contact.faq_q6", a: "contact.faq_a6" },
 ];
 
 const faqs = [
@@ -55,32 +64,29 @@ const faqs = [
   },
 ];
 
-const socialLinks = [
-  { icon: Linkedin, href: "https://www.linkedin.com/in/alsamos/", label: "LinkedIn" },
-  { icon: Instagram, href: "https://instagram.com/alsamosofficial", label: "Instagram" },
-  { icon: Youtube, href: "https://youtube.com/alsamos", label: "YouTube" },
-  { icon: Twitter, href: "https://x.com/AlsamosOfficial", label: "X (Twitter)" },
-  { icon: Facebook, href: "https://facebook.com/AlsamosOfficial", label: "Facebook" },
-];
-
 const Contact = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const seo = useSeoMeta("contact");
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
+
+  const contactCategories = [
+    { icon: MessageSquare, title: t("contact.general"), description: t("contact.general_desc") },
+    { icon: Briefcase, title: t("contact.partnership"), description: t("contact.partnership_desc") },
+    { icon: Headphones, title: t("contact.support"), description: t("contact.support_desc") },
+    { icon: Users, title: t("contact.careers_cat"), description: t("contact.careers_desc") },
+    { icon: Building, title: t("contact.investor_cat"), description: t("contact.investor_desc") },
+  ];
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
     toast({
-      title: "Message Sent!",
-      description: "Thank you for contacting us. We'll respond within 24-48 hours.",
+      title: t("contact.toast_title"),
+      description: t("contact.toast_desc"),
     });
-    
     setIsSubmitting(false);
     (e.target as HTMLFormElement).reset();
   };
@@ -94,8 +100,6 @@ const Contact = () => {
         <meta name="keywords" content={seo.keywords} />
         <link rel="canonical" href="https://alsamos.com/contact" />
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-        
-        {/* Open Graph */}
         <meta property="og:title" content={seo.ogTitle} />
         <meta property="og:description" content={seo.ogDescription} />
         <meta property="og:type" content="website" />
@@ -105,21 +109,16 @@ const Contact = () => {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:locale" content={getLocaleCode(language)} />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:site" content="@AlsamosOfficial" />
         <meta name="twitter:title" content={seo.ogTitle} />
         <meta name="twitter:description" content={seo.ogDescription} />
         <meta name="twitter:image" content="https://alsamos.com/og-contact.png" />
-        
-        {/* JSON-LD Structured Data - ContactPage + FAQPage */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "ContactPage",
             "name": "Contact ALSAMOS",
-            "description": "Contact ALSAMOS for inquiries, partnerships, support, or career opportunities.",
             "url": "https://alsamos.com/contact",
             "breadcrumb": {
               "@type": "BreadcrumbList",
@@ -133,42 +132,10 @@ const Contact = () => {
               "name": "ALSAMOS Corporation",
               "url": "https://alsamos.com",
               "email": "alsamos.company@gmail.com",
-              "telephone": "+998933007709",
-              "address": {
-                "@type": "PostalAddress",
-                "addressLocality": "Tashkent",
-                "addressCountry": "UZ"
-              },
-              "contactPoint": [
-                {
-                  "@type": "ContactPoint",
-                  "contactType": "customer service",
-                  "email": "support@alsamos.com",
-                  "availableLanguage": ["English", "Russian", "Uzbek"]
-                },
-                {
-                  "@type": "ContactPoint",
-                  "contactType": "sales",
-                  "email": "alsamos.company@gmail.com"
-                },
-                {
-                  "@type": "ContactPoint",
-                  "contactType": "investor relations",
-                  "email": "investors@alsamos.com"
-                }
-              ],
-              "sameAs": [
-                "https://www.linkedin.com/in/alsamos/",
-                "https://x.com/AlsamosOfficial",
-                "https://instagram.com/alsamosofficial",
-                "https://youtube.com/alsamos",
-                "https://facebook.com/AlsamosOfficial"
-              ]
+              "telephone": "+998933007709"
             }
           })}
         </script>
-        
-        {/* FAQ Schema */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -176,10 +143,7 @@ const Contact = () => {
             "mainEntity": faqs.map(faq => ({
               "@type": "Question",
               "name": faq.question,
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": faq.answer
-              }
+              "acceptedAnswer": { "@type": "Answer", "text": faq.answer }
             }))
           })}
         </script>
@@ -201,14 +165,13 @@ const Contact = () => {
               >
                 <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary/10 border border-primary/20 mb-4 sm:mb-6">
                   <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-medium text-primary">Contact Us</span>
+                  <span className="text-xs sm:text-sm font-medium text-primary">{t("contact.badge")}</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
-                  Let's <span className="text-primary">Connect</span>
+                  {t("contact.title_1")}<span className="text-primary">{t("contact.title_2")}</span>
                 </h1>
                 <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto px-2">
-                  Have questions or want to discuss a partnership? We'd love to hear from you. 
-                  Our team is ready to help.
+                  {t("contact.subtitle")}
                 </p>
               </motion.div>
             </div>
@@ -248,61 +211,59 @@ const Contact = () => {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                 >
-                  <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Send Us a Message</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">{t("contact.send_message")}</h2>
                   <form onSubmit={handleSubmit} className="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8">
                     <div className="grid sm:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
                       <div>
-                        <Label htmlFor="firstName" className="text-sm">First Name *</Label>
+                        <Label htmlFor="firstName" className="text-sm">{t("contact.first_name")} *</Label>
                         <Input id="firstName" name="firstName" required className="mt-1 h-10 sm:h-11" />
                       </div>
                       <div>
-                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Label htmlFor="lastName">{t("contact.last_name")} *</Label>
                         <Input id="lastName" name="lastName" required className="mt-1" />
                       </div>
                     </div>
                     <div className="mb-4">
-                      <Label htmlFor="email">Email Address *</Label>
+                      <Label htmlFor="email">{t("contact.email")} *</Label>
                       <Input id="email" name="email" type="email" required className="mt-1" />
                     </div>
                     <div className="mb-4">
-                      <Label htmlFor="phone">Phone Number</Label>
+                      <Label htmlFor="phone">{t("contact.phone")}</Label>
                       <Input id="phone" name="phone" type="tel" className="mt-1" />
                     </div>
                     <div className="mb-4">
-                      <Label htmlFor="subject">Subject *</Label>
+                      <Label htmlFor="subject">{t("contact.subject")} *</Label>
                       <Select name="subject" required>
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select a topic" />
+                          <SelectValue placeholder={t("contact.select_topic")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="general">General Inquiry</SelectItem>
-                          <SelectItem value="partnership">Business Partnership</SelectItem>
-                          <SelectItem value="support">Customer Support</SelectItem>
-                          <SelectItem value="careers">Careers</SelectItem>
-                          <SelectItem value="investors">Investor Relations</SelectItem>
-                          <SelectItem value="media">Media & Press</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="general">{t("contact.subject_general")}</SelectItem>
+                          <SelectItem value="partnership">{t("contact.subject_partnership")}</SelectItem>
+                          <SelectItem value="support">{t("contact.subject_support")}</SelectItem>
+                          <SelectItem value="careers">{t("contact.subject_careers")}</SelectItem>
+                          <SelectItem value="investors">{t("contact.subject_investors")}</SelectItem>
+                          <SelectItem value="media">{t("contact.subject_media")}</SelectItem>
+                          <SelectItem value="other">{t("contact.subject_other")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="mb-6">
-                      <Label htmlFor="message">Message *</Label>
+                      <Label htmlFor="message">{t("contact.message")} *</Label>
                       <Textarea 
                         id="message" 
                         name="message" 
                         rows={5}
                         required
-                        placeholder="How can we help you?"
+                        placeholder={t("contact.message_placeholder")}
                         className="mt-1"
                       />
                     </div>
                     <Button type="submit" className="w-full gap-2" disabled={isSubmitting}>
-                      {isSubmitting ? (
-                        "Sending..."
-                      ) : (
+                      {isSubmitting ? t("contact.sending") : (
                         <>
                           <Send className="w-4 h-4" />
-                          Send Message
+                          {t("contact.send")}
                         </>
                       )}
                     </Button>
@@ -315,7 +276,7 @@ const Contact = () => {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                 >
-                  <h2 className="text-2xl font-bold mb-6">Contact Information</h2>
+                  <h2 className="text-2xl font-bold mb-6">{t("contact.info_title")}</h2>
                   
                   <div className="space-y-6 mb-8">
                     <div className="glass-card rounded-xl p-5 flex items-start gap-4">
@@ -323,7 +284,7 @@ const Contact = () => {
                         <Mail className="w-6 h-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold mb-1">Email</h3>
+                        <h3 className="font-semibold mb-1">{t("contact.email_label")}</h3>
                         <a href="mailto:alsamos.company@gmail.com" className="text-muted-foreground hover:text-primary transition-colors">
                           alsamos.company@gmail.com
                         </a>
@@ -335,7 +296,7 @@ const Contact = () => {
                         <Phone className="w-6 h-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold mb-1">Phone</h3>
+                        <h3 className="font-semibold mb-1">{t("contact.phone_label")}</h3>
                         <a href="tel:+998933007709" className="text-muted-foreground hover:text-primary transition-colors">
                           +998 93 300 77 09
                         </a>
@@ -347,7 +308,7 @@ const Contact = () => {
                         <MapPin className="w-6 h-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold mb-1">Headquarters</h3>
+                        <h3 className="font-semibold mb-1">{t("contact.headquarters")}</h3>
                         <p className="text-muted-foreground">Tashkent, Uzbekistan</p>
                       </div>
                     </div>
@@ -357,15 +318,15 @@ const Contact = () => {
                         <Clock className="w-6 h-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold mb-1">Business Hours</h3>
-                        <p className="text-muted-foreground">Monday - Friday: 9:00 AM - 6:00 PM (UZT)</p>
+                        <h3 className="font-semibold mb-1">{t("contact.business_hours")}</h3>
+                        <p className="text-muted-foreground">{t("contact.hours_value")}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Social Links */}
                   <div className="glass-card rounded-xl p-5">
-                    <h3 className="font-semibold mb-4">Follow Us</h3>
+                    <h3 className="font-semibold mb-4">{t("contact.follow_us")}</h3>
                     <div className="flex flex-wrap gap-3">
                       {socialLinks.map((social) => (
                         <a
@@ -395,8 +356,8 @@ const Contact = () => {
                 viewport={{ once: true }}
                 className="text-center mb-12"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Global Presence</h2>
-                <p className="text-lg text-muted-foreground">Offices in major cities worldwide</p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("contact.map_title")}</h2>
+                <p className="text-lg text-muted-foreground">{t("contact.map_subtitle")}</p>
               </motion.div>
 
               <div className="glass-card rounded-2xl overflow-hidden h-96">
@@ -423,8 +384,8 @@ const Contact = () => {
                 viewport={{ once: true }}
                 className="text-center mb-12"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
-                <p className="text-lg text-muted-foreground">Quick answers to common questions</p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("contact.faq_title")}</h2>
+                <p className="text-lg text-muted-foreground">{t("contact.faq_subtitle")}</p>
               </motion.div>
 
               <div className="max-w-3xl mx-auto space-y-4">

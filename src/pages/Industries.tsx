@@ -56,7 +56,7 @@ const Industries = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const seo = useSeoMeta("industries");
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
 
   const filteredSectors = sectors.filter((sector) =>
     sector.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,8 +144,8 @@ const Industries = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 sm:mb-6"
                 >
-                  100+ Industries,{" "}
-                  <span className="gradient-text">One Vision</span>
+                  {t("industries.title_1")}
+                  <span className="gradient-text">{t("industries.title_2")}</span>
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0, y: 20 }}
@@ -153,8 +153,7 @@ const Industries = () => {
                   transition={{ delay: 0.1 }}
                   className="text-base sm:text-lg text-muted-foreground mb-6 sm:mb-8 px-2"
                 >
-                  From AI to Agriculture, Healthcare to Aerospace — discover how ALSAMOS 
-                  is building the infrastructure for humanity's future.
+                  {t("industries.subtitle")}
                 </motion.p>
 
                 {/* Search */}
@@ -167,7 +166,7 @@ const Industries = () => {
                   <Search className="absolute left-6 sm:left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Search industries..."
+                    placeholder={t("industries.search")}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full h-12 sm:h-14 pl-12 pr-4 rounded-xl bg-surface border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground text-sm sm:text-base"
@@ -183,7 +182,7 @@ const Industries = () => {
               {/* Controls */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                 <p className="text-sm sm:text-base text-muted-foreground">
-                  Showing {filteredSectors.length} of {sectors.length} industries
+                  {t("industries.showing").replace("{filtered}", String(filteredSectors.length)).replace("{total}", String(sectors.length))}
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -241,12 +240,12 @@ const Industries = () => {
                         <div className="flex gap-2">
                           <Button asChild variant="outline" size="sm" className="flex-1 text-xs sm:text-sm h-8 sm:h-9">
                             <Link to={`/industries/${sector.slug}`}>
-                              Learn More
+                              {t("industries.learn_more")}
                             </Link>
                           </Button>
                           <Button asChild size="sm" className="flex-1 bg-primary hover:bg-primary-dark text-xs sm:text-sm h-8 sm:h-9">
                             <a href={`https://${sector.subdomain}`} target="_blank" rel="noopener noreferrer">
-                              Visit
+                              {t("industries.visit")}
                               <ExternalLink className="w-3 h-3 ml-1" />
                             </a>
                           </Button>
@@ -294,7 +293,7 @@ const Industries = () => {
                           <div className="flex gap-2">
                             <Button asChild variant="outline" size="sm">
                               <Link to={`/industries/${sector.slug}`}>
-                                Learn More
+                                {t("industries.learn_more")}
                               </Link>
                             </Button>
                             <Button asChild size="sm" className="bg-primary hover:bg-primary-dark">
@@ -312,7 +311,7 @@ const Industries = () => {
 
               {filteredSectors.length === 0 && (
                 <div className="text-center py-12">
-                  <p className="text-muted-foreground">No industries found matching "{searchQuery}"</p>
+                  <p className="text-muted-foreground">{t("industries.no_results").replace("{query}", searchQuery)}</p>
                 </div>
               )}
             </div>

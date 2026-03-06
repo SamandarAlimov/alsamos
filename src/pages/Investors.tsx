@@ -50,27 +50,9 @@ const metrics = [
 ];
 
 const opportunities = [
-  {
-    title: "Series D Funding Round",
-    description: "Join our latest funding round as we scale globally across 100+ industries.",
-    minInvestment: "$1M",
-    status: "Open",
-    deadline: "Q2 2024"
-  },
-  {
-    title: "Strategic Partnership",
-    description: "Partner with ALSAMOS to bring innovation to your industry.",
-    minInvestment: "Varies",
-    status: "Open",
-    deadline: "Ongoing"
-  },
-  {
-    title: "Sector-Specific Investment",
-    description: "Invest in specific ALSAMOS sectors: AI, Healthcare, Automotive, etc.",
-    minInvestment: "$500K",
-    status: "Open",
-    deadline: "Rolling"
-  }
+  { title: "Series D Funding Round", description: "Join our latest funding round as we scale globally across 100+ industries.", minInvestment: "$1M", status: "Open", deadline: "Q2 2024" },
+  { title: "Strategic Partnership", description: "Partner with ALSAMOS to bring innovation to your industry.", minInvestment: "Varies", status: "Open", deadline: "Ongoing" },
+  { title: "Sector-Specific Investment", description: "Invest in specific ALSAMOS sectors: AI, Healthcare, Automotive, etc.", minInvestment: "$500K", status: "Open", deadline: "Rolling" }
 ];
 
 const documents = [
@@ -84,19 +66,16 @@ const Investors = () => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const seo = useSeoMeta("investors");
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
     toast({
-      title: "Thank You for Your Interest!",
-      description: "Our investor relations team will contact you within 2 business days.",
+      title: t("investors.toast_title"),
+      description: t("investors.toast_desc"),
     });
-    
     setIsSubmitting(false);
     (e.target as HTMLFormElement).reset();
   };
@@ -110,8 +89,6 @@ const Investors = () => {
         <meta name="keywords" content={seo.keywords} />
         <link rel="canonical" href="https://alsamos.com/investors" />
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-        
-        {/* Open Graph */}
         <meta property="og:title" content={seo.ogTitle} />
         <meta property="og:description" content={seo.ogDescription} />
         <meta property="og:type" content="website" />
@@ -121,25 +98,16 @@ const Investors = () => {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:locale" content={getLocaleCode(language)} />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:site" content="@AlsamosOfficial" />
         <meta name="twitter:title" content={seo.ogTitle} />
         <meta name="twitter:description" content={seo.ogDescription} />
         <meta name="twitter:image" content="https://alsamos.com/og-investors.png" />
-        <meta name="twitter:label1" content="Revenue" />
-        <meta name="twitter:data1" content="$2.8B" />
-        <meta name="twitter:label2" content="Growth" />
-        <meta name="twitter:data2" content="45% YoY" />
-        
-        {/* JSON-LD Structured Data - InvestmentOrFinancialService */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "WebPage",
             "name": "ALSAMOS Investor Relations",
-            "description": "Explore investment opportunities with ALSAMOS. Access financial reports, growth metrics, and connect with our investor relations team.",
             "url": "https://alsamos.com/investors",
             "breadcrumb": {
               "@type": "BreadcrumbList",
@@ -148,31 +116,7 @@ const Investors = () => {
                 { "@type": "ListItem", "position": 2, "name": "Investors", "item": "https://alsamos.com/investors" }
               ]
             },
-            "isPartOf": {
-              "@type": "WebSite",
-              "name": "ALSAMOS",
-              "url": "https://alsamos.com"
-            },
-            "about": {
-              "@type": "Corporation",
-              "name": "ALSAMOS Corporation",
-              "url": "https://alsamos.com",
-              "foundingDate": "2019",
-              "numberOfEmployees": {
-                "@type": "QuantitativeValue",
-                "minValue": 1000
-              }
-            },
-            "mainEntity": {
-              "@type": "FinancialProduct",
-              "name": "ALSAMOS Investment Opportunities",
-              "description": "Series D Funding, Strategic Partnership, and Sector-Specific Investment opportunities",
-              "provider": {
-                "@type": "Corporation",
-                "name": "ALSAMOS Corporation"
-              },
-              "feesAndCommissionsSpecification": "Minimum investment varies by opportunity type"
-            }
+            "isPartOf": { "@type": "WebSite", "name": "ALSAMOS", "url": "https://alsamos.com" }
           })}
         </script>
       </Helmet>
@@ -193,14 +137,13 @@ const Investors = () => {
               >
                 <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary/10 border border-primary/20 mb-4 sm:mb-6">
                   <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-medium text-primary">Investor Relations</span>
+                  <span className="text-xs sm:text-sm font-medium text-primary">{t("investors.badge")}</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
-                  Invest in the <span className="text-primary">Future</span>
+                  {t("investors.title_1")}<span className="text-primary">{t("investors.title_2")}</span>
                 </h1>
                 <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-6 sm:mb-8 px-2">
-                  Join us in building the future of innovation. ALSAMOS offers unique investment 
-                  opportunities across 100+ industries with proven growth and strong fundamentals.
+                  {t("investors.subtitle")}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                   <Button 
@@ -209,11 +152,11 @@ const Investors = () => {
                     onClick={() => document.getElementById('investor-contact')?.scrollIntoView({ behavior: 'smooth' })}
                   >
                     <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
-                    Become an Investor
+                    {t("investors.become_investor")}
                   </Button>
                   <Button size="lg" variant="outline" className="gap-2 h-11 sm:h-12 text-sm sm:text-base">
                     <Download className="w-4 h-4 sm:w-5 sm:h-5" />
-                    Download Deck
+                    {t("investors.download_deck")}
                   </Button>
                 </div>
               </motion.div>
@@ -229,9 +172,9 @@ const Investors = () => {
                 viewport={{ once: true }}
                 className="text-center mb-8 sm:mb-12"
               >
-                <span className="text-primary font-medium text-xs sm:text-sm uppercase tracking-wider">Performance</span>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mt-2 mb-3 sm:mb-4">Key Metrics</h2>
-                <p className="text-base sm:text-lg text-muted-foreground">Our performance at a glance</p>
+                <span className="text-primary font-medium text-xs sm:text-sm uppercase tracking-wider">{t("investors.performance")}</span>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mt-2 mb-3 sm:mb-4">{t("investors.key_metrics")}</h2>
+                <p className="text-base sm:text-lg text-muted-foreground">{t("investors.at_a_glance")}</p>
               </motion.div>
 
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
@@ -261,7 +204,7 @@ const Investors = () => {
             </div>
           </section>
 
-          {/* Growth Charts Placeholder */}
+          {/* Growth Charts */}
           <section className="py-16 lg:py-24">
             <div className="container mx-auto px-4">
               <motion.div
@@ -270,12 +213,11 @@ const Investors = () => {
                 viewport={{ once: true }}
                 className="text-center mb-12"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Growth Trajectory</h2>
-                <p className="text-lg text-muted-foreground">Consistent growth across all metrics</p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("investors.growth_title")}</h2>
+                <p className="text-lg text-muted-foreground">{t("investors.growth_subtitle")}</p>
               </motion.div>
 
               <div className="grid lg:grid-cols-2 gap-6 lg:gap-8">
-                {/* Revenue Chart */}
                 <motion.div 
                   className="glass-card rounded-2xl p-6"
                   initial={{ opacity: 0, x: -30 }}
@@ -285,7 +227,7 @@ const Investors = () => {
                 >
                   <div className="flex items-center gap-3 mb-6">
                     <BarChart3 className="w-6 h-6 text-primary" />
-                    <h3 className="font-bold">Revenue Growth ($M)</h3>
+                    <h3 className="font-bold">{t("investors.revenue_growth")}</h3>
                   </div>
                   <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={revenueData}>
@@ -298,26 +240,12 @@ const Investors = () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="year" stroke="hsl(var(--muted-foreground))" fontSize={11} />
                       <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--background))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px'
-                        }} 
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke="hsl(var(--primary))" 
-                        fillOpacity={1} 
-                        fill="url(#colorRevenue)" 
-                        strokeWidth={3}
-                      />
+                      <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} />
+                      <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorRevenue)" strokeWidth={3} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </motion.div>
 
-                {/* Sector Distribution */}
                 <motion.div 
                   className="glass-card rounded-2xl p-6"
                   initial={{ opacity: 0, x: 30 }}
@@ -327,23 +255,13 @@ const Investors = () => {
                 >
                   <div className="flex items-center gap-3 mb-6">
                     <PieChartIcon className="w-6 h-6 text-primary" />
-                    <h3 className="font-bold">Revenue by Sector</h3>
+                    <h3 className="font-bold">{t("investors.revenue_by_sector")}</h3>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center gap-6">
                     <ResponsiveContainer width="100%" height={200} className="sm:w-[55%]">
                       <PieChart>
-                        <Pie
-                          data={sectorDistribution}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={75}
-                          paddingAngle={2}
-                          dataKey="value"
-                        >
-                          {sectorDistribution.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
+                        <Pie data={sectorDistribution} cx="50%" cy="50%" innerRadius={40} outerRadius={75} paddingAngle={2} dataKey="value">
+                          {sectorDistribution.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
                         </Pie>
                         <Tooltip />
                       </PieChart>
@@ -351,10 +269,7 @@ const Investors = () => {
                     <div className="flex-1 grid grid-cols-2 sm:grid-cols-1 gap-2">
                       {sectorDistribution.map((sector) => (
                         <div key={sector.name} className="flex items-center gap-2">
-                          <div 
-                            className="w-3 h-3 rounded-full flex-shrink-0" 
-                            style={{ backgroundColor: sector.color }}
-                          />
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sector.color }} />
                           <span className="text-xs text-muted-foreground truncate">{sector.name}</span>
                           <span className="text-xs font-medium ml-auto">{sector.value}%</span>
                         </div>
@@ -375,8 +290,8 @@ const Investors = () => {
                 viewport={{ once: true }}
                 className="text-center mb-12"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Investment Opportunities</h2>
-                <p className="text-lg text-muted-foreground">Current opportunities to invest in ALSAMOS</p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("investors.opportunities_title")}</h2>
+                <p className="text-lg text-muted-foreground">{t("investors.opportunities_subtitle")}</p>
               </motion.div>
 
               <div className="grid lg:grid-cols-3 gap-8">
@@ -402,11 +317,11 @@ const Investors = () => {
                     <p className="text-muted-foreground mb-4">{opp.description}</p>
                     <div className="flex items-center justify-between pt-4 border-t border-border">
                       <div>
-                        <span className="text-sm text-muted-foreground">Min. Investment</span>
+                        <span className="text-sm text-muted-foreground">{t("investors.min_investment")}</span>
                         <p className="font-bold text-primary">{opp.minInvestment}</p>
                       </div>
                       <Button variant="outline" size="sm" className="gap-2">
-                        Learn More
+                        {t("investors.learn_more")}
                         <ArrowRight className="w-4 h-4" />
                       </Button>
                     </div>
@@ -425,8 +340,8 @@ const Investors = () => {
                 viewport={{ once: true }}
                 className="text-center mb-12"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Investor Documents</h2>
-                <p className="text-lg text-muted-foreground">Access our latest reports and presentations</p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("investors.documents_title")}</h2>
+                <p className="text-lg text-muted-foreground">{t("investors.documents_subtitle")}</p>
               </motion.div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
@@ -442,9 +357,7 @@ const Investors = () => {
                     <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                       <FileText className="w-6 h-6 text-primary" />
                     </div>
-                    <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">
-                      {doc.title}
-                    </h3>
+                    <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">{doc.title}</h3>
                     <p className="text-sm text-muted-foreground">{doc.type} • {doc.size}</p>
                   </motion.div>
                 ))}
@@ -452,7 +365,7 @@ const Investors = () => {
             </div>
           </section>
 
-          {/* Investor Application Form */}
+          {/* Investor Contact Form */}
           <section id="investor-contact" className="py-16 lg:py-24 bg-muted/50 scroll-mt-20">
             <div className="container mx-auto px-4">
               <div className="grid lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
@@ -461,11 +374,8 @@ const Investors = () => {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                 >
-                  <h2 className="text-3xl md:text-4xl font-bold mb-4">Get in Touch</h2>
-                  <p className="text-lg text-muted-foreground mb-8">
-                    Interested in investing with ALSAMOS? Our investor relations team is ready 
-                    to answer your questions and discuss opportunities.
-                  </p>
+                  <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("investors.contact_title")}</h2>
+                  <p className="text-lg text-muted-foreground mb-8">{t("investors.contact_desc")}</p>
                   <div className="space-y-4">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -487,42 +397,42 @@ const Investors = () => {
                   viewport={{ once: true }}
                   className="glass-card rounded-2xl p-8"
                 >
-                  <h3 className="text-xl font-bold mb-6">Request Information</h3>
+                  <h3 className="text-xl font-bold mb-6">{t("investors.request_info")}</h3>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="firstName">First Name *</Label>
+                        <Label htmlFor="firstName">{t("investors.first_name")} *</Label>
                         <Input id="firstName" name="firstName" required className="mt-1" />
                       </div>
                       <div>
-                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Label htmlFor="lastName">{t("investors.last_name")} *</Label>
                         <Input id="lastName" name="lastName" required className="mt-1" />
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor="email">Email Address *</Label>
+                      <Label htmlFor="email">{t("investors.email_label")} *</Label>
                       <Input id="email" name="email" type="email" required className="mt-1" />
                     </div>
                     <div>
-                      <Label htmlFor="company">Company/Organization</Label>
+                      <Label htmlFor="company">{t("investors.company")}</Label>
                       <Input id="company" name="company" className="mt-1" />
                     </div>
                     <div>
-                      <Label htmlFor="investmentRange">Investment Range</Label>
-                      <Input id="investmentRange" name="investmentRange" placeholder="e.g., $500K - $1M" className="mt-1" />
+                      <Label htmlFor="investmentRange">{t("investors.investment_range")}</Label>
+                      <Input id="investmentRange" name="investmentRange" placeholder={t("investors.investment_placeholder")} className="mt-1" />
                     </div>
                     <div>
-                      <Label htmlFor="message">Message</Label>
+                      <Label htmlFor="message">{t("investors.message")}</Label>
                       <Textarea 
                         id="message" 
                         name="message" 
                         rows={4}
-                        placeholder="Tell us about your investment interests..."
+                        placeholder={t("investors.message_placeholder")}
                         className="mt-1"
                       />
                     </div>
                     <Button type="submit" className="w-full" disabled={isSubmitting}>
-                      {isSubmitting ? "Submitting..." : "Submit Request"}
+                      {isSubmitting ? t("investors.submitting") : t("investors.submit")}
                     </Button>
                   </form>
                 </motion.div>

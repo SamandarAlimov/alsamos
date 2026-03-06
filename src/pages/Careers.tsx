@@ -27,7 +27,7 @@ const Careers = () => {
   const [selectedLocation, setSelectedLocation] = useState("All Locations");
   const [selectedType, setSelectedType] = useState("All Types");
   const seo = useSeoMeta("careers");
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
 
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -47,8 +47,6 @@ const Careers = () => {
         <meta name="keywords" content={seo.keywords} />
         <link rel="canonical" href="https://alsamos.com/careers" />
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-        
-        {/* Open Graph */}
         <meta property="og:title" content={seo.ogTitle} />
         <meta property="og:description" content={seo.ogDescription} />
         <meta property="og:type" content="website" />
@@ -58,21 +56,16 @@ const Careers = () => {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:locale" content={getLocaleCode(language)} />
-        
-        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:site" content="@AlsamosOfficial" />
         <meta name="twitter:title" content={seo.ogTitle} />
         <meta name="twitter:description" content={seo.ogDescription} />
         <meta name="twitter:image" content="https://alsamos.com/og-careers.png" />
-        
-        {/* JSON-LD Structured Data - JobPosting List */}
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "WebPage",
             "name": "Careers at ALSAMOS",
-            "description": "Join ALSAMOS and help build the future. Explore career opportunities across engineering, design, product, marketing, and more.",
             "url": "https://alsamos.com/careers",
             "breadcrumb": {
               "@type": "BreadcrumbList",
@@ -81,11 +74,7 @@ const Careers = () => {
                 { "@type": "ListItem", "position": 2, "name": "Careers", "item": "https://alsamos.com/careers" }
               ]
             },
-            "isPartOf": {
-              "@type": "WebSite",
-              "name": "ALSAMOS",
-              "url": "https://alsamos.com"
-            },
+            "isPartOf": { "@type": "WebSite", "name": "ALSAMOS", "url": "https://alsamos.com" },
             "mainEntity": {
               "@type": "ItemList",
               "name": "Open Positions at ALSAMOS",
@@ -100,15 +89,8 @@ const Careers = () => {
                   "url": `https://alsamos.com/careers/${job.slug}`,
                   "datePosted": job.posted,
                   "employmentType": job.type.toUpperCase().replace(' ', '_'),
-                  "jobLocation": {
-                    "@type": "Place",
-                    "address": { "@type": "PostalAddress", "addressLocality": job.location }
-                  },
-                  "hiringOrganization": {
-                    "@type": "Organization",
-                    "name": "ALSAMOS Corporation",
-                    "url": "https://alsamos.com"
-                  }
+                  "jobLocation": { "@type": "Place", "address": { "@type": "PostalAddress", "addressLocality": job.location } },
+                  "hiringOrganization": { "@type": "Organization", "name": "ALSAMOS Corporation", "url": "https://alsamos.com" }
                 }
               }))
             }
@@ -132,14 +114,13 @@ const Careers = () => {
               >
                 <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary/10 border border-primary/20 mb-4 sm:mb-6">
                   <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-medium text-primary">Join Our Team</span>
+                  <span className="text-xs sm:text-sm font-medium text-primary">{t("careers.badge")}</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
-                  Build the <span className="text-primary">Future</span> With Us
+                  {t("careers.title_1")}<span className="text-primary">{t("careers.title_2")}</span>{t("careers.title_3")}
                 </h1>
                 <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto px-2">
-                  Join a global team of innovators, creators, and problem-solvers who are 
-                  shaping the future of technology across 100+ industries.
+                  {t("careers.subtitle")}
                 </p>
               </motion.div>
             </div>
@@ -154,10 +135,8 @@ const Careers = () => {
                 viewport={{ once: true }}
                 className="text-center mb-8 sm:mb-12"
               >
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">Our Culture</h2>
-                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
-                  What drives us and defines who we are
-                </p>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">{t("careers.culture_title")}</h2>
+                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">{t("careers.culture_subtitle")}</p>
               </motion.div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
@@ -190,10 +169,8 @@ const Careers = () => {
                 viewport={{ once: true }}
                 className="text-center mb-12"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Benefits & Perks</h2>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                  We take care of our team so they can focus on what matters most
-                </p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("careers.benefits_title")}</h2>
+                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{t("careers.benefits_subtitle")}</p>
               </motion.div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -231,10 +208,8 @@ const Careers = () => {
                 viewport={{ once: true }}
                 className="text-center mb-12"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Open Positions</h2>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                  Find your next opportunity
-                </p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("careers.open_positions")}</h2>
+                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{t("careers.find_opportunity")}</p>
               </motion.div>
 
               {/* Filters */}
@@ -244,40 +219,28 @@ const Careers = () => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <Input
                       type="search"
-                      placeholder="Search jobs..."
+                      placeholder={t("careers.search")}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"
                     />
                   </div>
                   <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Department" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Department" /></SelectTrigger>
                     <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                      ))}
+                      {departments.map((dept) => (<SelectItem key={dept} value={dept}>{dept}</SelectItem>))}
                     </SelectContent>
                   </Select>
                   <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Location" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Location" /></SelectTrigger>
                     <SelectContent>
-                      {locations.map((loc) => (
-                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-                      ))}
+                      {locations.map((loc) => (<SelectItem key={loc} value={loc}>{loc}</SelectItem>))}
                     </SelectContent>
                   </Select>
                   <Select value={selectedType} onValueChange={setSelectedType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Job Type" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Job Type" /></SelectTrigger>
                     <SelectContent>
-                      {jobTypes.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
+                      {jobTypes.map((type) => (<SelectItem key={type} value={type}>{type}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -300,42 +263,26 @@ const Careers = () => {
                       >
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium">
-                              {job.department}
-                            </span>
-                            <span className="px-2 py-1 rounded-md bg-muted text-xs text-muted-foreground">
-                              {job.type}
-                            </span>
+                            <span className="px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium">{job.department}</span>
+                            <span className="px-2 py-1 rounded-md bg-muted text-xs text-muted-foreground">{job.type}</span>
                           </div>
-                          <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">
-                            {job.title}
-                          </h3>
-                          <p className="text-muted-foreground text-sm mb-3 line-clamp-2">
-                            {job.description}
-                          </p>
+                          <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{job.title}</h3>
+                          <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{job.description}</p>
                           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-4 h-4" />
-                              {job.location}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Briefcase className="w-4 h-4" />
-                              {job.experience}
-                            </span>
+                            <span className="flex items-center gap-1"><MapPin className="w-4 h-4" />{job.location}</span>
+                            <span className="flex items-center gap-1"><Briefcase className="w-4 h-4" />{job.experience}</span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-4 h-4" />
-                              Posted {new Date(job.posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {t("careers.posted")} {new Date(job.posted).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </span>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           {job.salary && (
-                            <span className="text-sm font-medium text-primary hidden lg:block">
-                              {job.salary}
-                            </span>
+                            <span className="text-sm font-medium text-primary hidden lg:block">{job.salary}</span>
                           )}
                           <Button variant="outline" className="gap-2 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                            View Job
+                            {t("careers.view_job")}
                             <ArrowRight className="w-4 h-4" />
                           </Button>
                         </div>
@@ -345,7 +292,7 @@ const Careers = () => {
                 </div>
               ) : (
                 <div className="text-center py-16">
-                  <p className="text-xl text-muted-foreground">No positions found matching your criteria.</p>
+                  <p className="text-xl text-muted-foreground">{t("careers.no_results")}</p>
                   <Button 
                     variant="outline" 
                     className="mt-4"
@@ -356,7 +303,7 @@ const Careers = () => {
                       setSelectedType("All Types");
                     }}
                   >
-                    Clear Filters
+                    {t("careers.clear_filters")}
                   </Button>
                 </div>
               )}
@@ -372,15 +319,10 @@ const Careers = () => {
                 viewport={{ once: true }}
                 className="max-w-2xl mx-auto"
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                  Don't See a Perfect Fit?
-                </h2>
-                <p className="text-lg text-muted-foreground mb-8">
-                  We're always looking for talented people. Send us your resume and we'll 
-                  keep you in mind for future opportunities.
-                </p>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("careers.cta_title")}</h2>
+                <p className="text-lg text-muted-foreground mb-8">{t("careers.cta_desc")}</p>
                 <Button asChild size="lg">
-                  <Link to="/contact">Get in Touch</Link>
+                  <Link to="/contact">{t("careers.cta_button")}</Link>
                 </Button>
               </motion.div>
             </div>
