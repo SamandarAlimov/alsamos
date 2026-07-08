@@ -1,0 +1,318 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface Profile {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  is_verified: boolean;
+  is_online: boolean;
+  followers_count: number;
+  following_count: number;
+  posts_count: number;
+}
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  profile: Profile | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (identifier: string, password: string) => Promise<{ error: Error | null }>;
+  signup: (email: string, password: string, displayName?: string, username?: string) => Promise<{ error: Error | null }>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching profile:', error);
+      return;
+    }
+
+    if (data) {
+      setProfile(data as Profile);
+      // Update online status
+      await supabase
+        .from('profiles')
+        .update({ is_online: true, last_seen: new Date().toISOString() })
+        .eq('id', userId);
+    }
+  };
+
+  // Save account to localStorage for multi-account support
+  const saveAccountToStorage = async (userId: string, session: Session) => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, avatar_url, username')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const account = {
+        id: userId,
+        email: session.user.email || '',
+        displayName: profile?.display_name || null,
+        avatarUrl: profile?.avatar_url || null,
+        username: profile?.username || null,
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+        expiresAt: session.expires_at || 0,
+      };
+
+      const stored = localStorage.getItem('alsamos_accounts');
+      let accounts = stored ? JSON.parse(stored) : [];
+      
+      const existing = accounts.findIndex((a: any) => a.id === userId);
+      if (existing >= 0) {
+        accounts[existing] = account;
+      } else {
+        accounts.push(account);
+      }
+
+      localStorage.setItem('alsamos_accounts', JSON.stringify(accounts));
+      localStorage.setItem('alsamos_active_account', userId);
+    } catch (e) {
+      console.error('Failed to save account to storage:', e);
+    }
+  };
+
+  useEffect(() => {
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          // Defer profile fetch to avoid deadlock
+          setTimeout(() => {
+            fetchProfile(session.user.id);
+            // Save account for multi-account support
+            saveAccountToStorage(session.user.id, session);
+          }, 0);
+        } else {
+          setProfile(null);
+        }
+      }
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+        saveAccountToStorage(session.user.id, session);
+      }
+      setIsLoading(false);
+    });
+
+    // Set offline on unload
+    const handleUnload = async () => {
+      if (user) {
+        await supabase
+          .from('profiles')
+          .update({ is_online: false, last_seen: new Date().toISOString() })
+          .eq('id', user.id);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, []);
+
+  const resolveEmail = async (identifier: string): Promise<string | null> => {
+    const trimmed = identifier.trim();
+    if (!trimmed) return null;
+    if (trimmed.includes('@')) return trimmed.toLowerCase();
+    try {
+      const { data, error } = await supabase.rpc('get_email_for_identifier', { _identifier: trimmed });
+      if (error) {
+        console.error('resolveEmail rpc error', error);
+        return null;
+      }
+      return (data as string | null) || null;
+    } catch (e) {
+      console.error('resolveEmail rpc failed', e);
+      return null;
+    }
+  };
+
+  const login = async (identifier: string, password: string) => {
+    setIsLoading(true);
+    const email = await resolveEmail(identifier);
+
+    if (!email) {
+      toast({
+        title: 'Akkaunt topilmadi',
+        description: 'Bunday foydalanuvchi nomi yoki telefon raqami ro‘yxatdan o‘tmagan.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return { error: new Error('Account not found') };
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      const msg = error.message.toLowerCase().includes('invalid login')
+        ? 'Email/username yoki parol noto‘g‘ri'
+        : error.message;
+      toast({
+        title: 'Kirish amalga oshmadi',
+        description: msg,
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return { error };
+    }
+
+    setIsLoading(false);
+    return { error: null };
+  };
+
+  const signup = async (email: string, password: string, displayName?: string, username?: string) => {
+    setIsLoading(true);
+    const redirectUrl = `${window.location.origin}/`;
+    const finalUsername = (username || email.split('@')[0]).toLowerCase().replace(/[^a-z0-9_]/g, '');
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: {
+          display_name: displayName || finalUsername,
+          username: finalUsername,
+        },
+      },
+    });
+
+    if (error) {
+      let message = error.message;
+      if (error.message.includes('already registered')) {
+        message = 'Bu email allaqachon ro‘yxatdan o‘tgan. Iltimos, kirib chiqing.';
+      }
+      toast({
+        title: 'Ro‘yxatdan o‘tish amalga oshmadi',
+        description: message,
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return { error };
+    }
+
+    // If session is null (e.g. email confirmation required), try to sign in immediately
+    if (!data.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        toast({
+          title: 'Akkaunt yaratildi',
+          description: 'Iltimos, emailingizni tasdiqlang va qaytadan kiring.',
+        });
+        setIsLoading(false);
+        return { error: null };
+      }
+    }
+
+    toast({
+      title: 'Akkaunt yaratildi',
+      description: 'Alsamosga xush kelibsiz!',
+    });
+
+    setIsLoading(false);
+    return { error: null };
+  };
+
+  const logout = async () => {
+    if (user) {
+      await supabase
+        .from('profiles')
+        .update({ is_online: false, last_seen: new Date().toISOString() })
+        .eq('id', user.id);
+    }
+
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+  };
+
+
+  const updateProfile = async (updates: Partial<Profile>) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    if (error) {
+      toast({
+        title: 'Update Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setProfile(prev => prev ? { ...prev, ...updates } : null);
+    toast({
+      title: 'Profile Updated',
+      description: 'Your changes have been saved.',
+    });
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        signup,
+        logout,
+        updateProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
