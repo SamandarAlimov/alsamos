@@ -58,7 +58,7 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p "$HOME/.ssh"
-          printf '%s' "${{ secrets.ORACLE_SSH_KEY }}" > "$HOME/.ssh/alsamos"
+          printf '%s' "${{ secrets.ORACLE_SSH_KEY_B64 }}" | base64 -d > "$HOME/.ssh/alsamos"
           chmod 600 "$HOME/.ssh/alsamos"
           ssh-keyscan -H 92.4.76.166 >> "$HOME/.ssh/known_hosts"
       - name: Roll out frontends
