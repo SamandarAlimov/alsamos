@@ -11,11 +11,11 @@ jobs:
       - name: Configure kubeconfig
         run: |
           mkdir -p "$HOME/.kube"
-          printf '%s' "${{ secrets.K3S_KUBECONFIG }}" > "$HOME/.kube/config"
+          printf '%s' "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
       - name: Apply manifests
         run: |
-          kubectl apply -f infra/k8s/data-stack.yaml
-          kubectl apply -f infra/k8s/cert-manager-issuers.yaml
-          kubectl apply -f infra/k8s/postgres-backup-cronjob.yaml
-          kubectl apply -f infra/k8s/apps/
+          mkdir -p /tmp/alsamos-k8s
+          cp infra/k8s/apps/frontend-apps.yaml /tmp/alsamos-k8s/frontend-apps.yaml
+          sed -i "s/PLACEHOLDER_SHA/${GITHUB_SHA}/g" /tmp/alsamos-k8s/frontend-apps.yaml
+          kubectl apply -f /tmp/alsamos-k8s/frontend-apps.yaml

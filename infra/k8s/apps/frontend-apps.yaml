@@ -18,6 +18,8 @@ spec:
       labels:
         app: social-web
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: nginx
           image: ghcr.io/samandaralimov/alsamos-social-web:PLACEHOLDER_SHA
@@ -52,6 +54,8 @@ spec:
       labels:
         app: accounts-web
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: nginx
           image: ghcr.io/samandaralimov/alsamos-accounts-web:PLACEHOLDER_SHA
@@ -86,6 +90,8 @@ spec:
       labels:
         app: mail-web
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: nginx
           image: ghcr.io/samandaralimov/alsamos-mail-web:PLACEHOLDER_SHA
@@ -151,4 +157,3 @@ spec:
                 name: mail-web
                 port:
                   number: 80
-

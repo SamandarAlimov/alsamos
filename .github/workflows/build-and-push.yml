@@ -6,6 +6,7 @@ on:
     paths:
       - "alsamos-web/**"
       - "apps/**"
+      - "infra/k8s/apps/frontend-apps.yaml"
       - "services/**"
       - ".github/workflows/build-and-push.yml"
 
@@ -21,11 +22,11 @@ jobs:
       matrix:
         include:
           - name: social-web
-            context: alsamos-web
+            context: https://github.com/SamandarAlimov/socialalsamos.git#main
           - name: mail-web
-            context: apps/mail
+            context: https://github.com/SamandarAlimov/mail.git#main
           - name: accounts-web
-            context: apps/accounts
+            context: https://github.com/SamandarAlimov/accounts.git#main
           - name: ai-gateway
             context: services/ai
     steps:
@@ -42,4 +43,33 @@ jobs:
           context: ${{ matrix.context }}
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/alsamos-${{ matrix.name }}:${{ github.sha }}
+          tags: ghcr.io/samandaralimov/alsamos-${{ matrix.name }}:${{ github.sha }}
+          build-args: |
+            VITE_SUPABASE_URL=https://mbhjganbihamoiqmankv.supabase.co
+            VITE_SUPABASE_PROJECT_ID=mbhjganbihamoiqmankv
+            VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          printf '%s' "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+      - name: Roll out frontends
+        run: |
+          kubectl -n apps create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ github.token }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          mkdir -p /tmp/alsamos-k8s
+          cp infra/k8s/apps/frontend-apps.yaml /tmp/alsamos-k8s/frontend-apps.yaml
+          sed -i "s/PLACEHOLDER_SHA/${GITHUB_SHA}/g" /tmp/alsamos-k8s/frontend-apps.yaml
+          kubectl apply -f /tmp/alsamos-k8s/frontend-apps.yaml
+          kubectl -n apps rollout status deployment/social-web --timeout=180s
+          kubectl -n apps rollout status deployment/accounts-web --timeout=180s
+          kubectl -n apps rollout status deployment/mail-web --timeout=180s
