@@ -1,0 +1,154 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: social-web
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: social-web
+  template:
+    metadata:
+      labels:
+        app: social-web
+    spec:
+      containers:
+        - name: nginx
+          image: ghcr.io/samandaralimov/alsamos-social-web:PLACEHOLDER_SHA
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: social-web
+  namespace: apps
+spec:
+  selector:
+    app: social-web
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: accounts-web
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: accounts-web
+  template:
+    metadata:
+      labels:
+        app: accounts-web
+    spec:
+      containers:
+        - name: nginx
+          image: ghcr.io/samandaralimov/alsamos-accounts-web:PLACEHOLDER_SHA
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accounts-web
+  namespace: apps
+spec:
+  selector:
+    app: accounts-web
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mail-web
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mail-web
+  template:
+    metadata:
+      labels:
+        app: mail-web
+    spec:
+      containers:
+        - name: nginx
+          image: ghcr.io/samandaralimov/alsamos-mail-web:PLACEHOLDER_SHA
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mail-web
+  namespace: apps
+spec:
+  selector:
+    app: mail-web
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: alsamos-frontends
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - app.alsamos.com
+        - accounts.alsamos.com
+        - mail.alsamos.com
+      secretName: alsamos-frontends-tls
+  rules:
+    - host: app.alsamos.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: social-web
+                port:
+                  number: 80
+    - host: accounts.alsamos.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: accounts-web
+                port:
+                  number: 80
+    - host: mail.alsamos.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mail-web
+                port:
+                  number: 80
+
