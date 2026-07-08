@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - name: social-web
-            context: https://github.com/SamandarAlimov/socialalsamos.git#main
+            context: .
           - name: mail-web
             context: https://github.com/SamandarAlimov/mail.git#main
           - name: accounts-web
