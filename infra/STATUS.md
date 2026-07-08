@@ -16,14 +16,16 @@ Updated: 2026-07-08
 
 ## Stage 1 - Step 3 Execution
 
+Credential matrix: S1 Supabase = BLOCKED-EXTERNAL (`supabase` CLI missing and `SUPABASE_ACCESS_TOKEN` missing); S2 GitHub/GHCR = BLOCKED-EXTERNAL (`gh` CLI missing); S3 Cloudflare = BLOCKED-EXTERNAL (`cloudflared` CLI missing/login required); S4 Kubeconfig = AVAILABLE (`sudo k3s kubectl get ns data` returned `namespace/data`); S5 OpenRouter = BLOCKED-EXTERNAL (`OPENROUTER_API_KEY` missing).
+
 | Task | Status | Proof / Blocker |
 | --- | --- | --- |
-| E1 - Supabase edge functions | BLOCKED | Needs `SUPABASE_ACCESS_TOKEN` to link project `mbhjganbihamoiqmankv` and deploy ported functions. Consolidation SQL was already applied via Lovable, so migration is not rerun. |
-| E2 - OAuth client secret rotation | BLOCKED | Needs explicit rotation approval and approved secret storage location. Plaintext secrets must not be logged or committed. |
-| E3 - Oracle frontends + Cloudflare Tunnel | BLOCKED | Needs `CLOUDFLARE_TUNNEL_TOKEN`. No Kubernetes apply, image push, or tunnel deployment run. |
-| E4 - Oracle AI service | BLOCKED | Needs `OPENROUTER_API_KEY`. No AI Secret or Kubernetes apply run. |
-| E5 - CI/CD activation | BLOCKED | Needs `GHCR_PAT` with `write:packages` plus K3s kubeconfig/deploy secret. No workflow trigger run. |
-| E6 - Cross-app SSO verification | BLOCKED | Depends on public `accounts.alsamos.com`, `app.alsamos.com`, and `mail.alsamos.com` being deployed and reachable after E3. |
+| E1 - Supabase edge functions | BLOCKED-EXTERNAL | Needs browser `supabase login` or `SUPABASE_ACCESS_TOKEN`; `supabase projects list` failed because CLI is missing and env token is missing. Consolidation SQL was already applied via Lovable, so migration is not rerun. |
+| E2 - OAuth client secret rotation | BLOCKED-EXTERNAL | Rotation approval and storage location are approved (`data/oidc-secrets`), but updating live `oauth_clients` rows requires Supabase admin access from E1 or DB credentials. Plaintext secrets were not generated, logged, or committed. |
+| E3 - Oracle frontends + Cloudflare Tunnel | BLOCKED-EXTERNAL | K3s access is available, but `cloudflared tunnel list` failed because CLI/login is missing; needs browser `cloudflared tunnel login` or tunnel token. No Kubernetes apply, image push, or tunnel deployment run. |
+| E4 - Oracle AI service | BLOCKED-EXTERNAL | Needs `OPENROUTER_API_KEY`; env var is missing. No AI Secret or Kubernetes apply run. |
+| E5 - CI/CD activation | BLOCKED-EXTERNAL | Needs GitHub auth/GHCR credential; `gh auth status` failed because CLI is missing. No workflow trigger run. |
+| E6 - Cross-app SSO verification | BLOCKED-EXTERNAL | Depends on public `accounts.alsamos.com`, `app.alsamos.com`, and `mail.alsamos.com` being deployed and reachable after E3. |
 
 | Phase | Status | Notes |
 | --- | --- | --- |
