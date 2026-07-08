@@ -14,6 +14,17 @@ Updated: 2026-07-08
 | E - AI service | PARTIAL | Root local commit `1841582` added `services/ai` FastAPI gateway using `python:3.12-slim`, Pollinations and OpenRouter `:free` routing only, plus `infra/k8s/apps/ai-gateway.yaml` for `ai.alsamos.com` TLS. Local Python compile/run was not possible because only the Microsoft Store Python stub is installed. BLOCKED: OPENROUTER_API_KEY pending for OpenRouter free models. |
 | F - Monorepo + CI/CD | PARTIAL | Root local commit `d4062e2` added `packages/auth`, `deploy/README.md`, and GitHub Actions buildx ARM64 -> GHCR plus manual K3s deploy scaffolding. Root repo has local git history but no remote. BLOCKED: GHCR/K3S secrets and root remote/push target required. |
 
+## Stage 1 - Step 3 Execution
+
+| Task | Status | Proof / Blocker |
+| --- | --- | --- |
+| E1 - Supabase edge functions | BLOCKED | Needs `SUPABASE_ACCESS_TOKEN` to link project `mbhjganbihamoiqmankv` and deploy ported functions. Consolidation SQL was already applied via Lovable, so migration is not rerun. |
+| E2 - OAuth client secret rotation | BLOCKED | Needs explicit rotation approval and approved secret storage location. Plaintext secrets must not be logged or committed. |
+| E3 - Oracle frontends + Cloudflare Tunnel | BLOCKED | Needs `CLOUDFLARE_TUNNEL_TOKEN`. No Kubernetes apply, image push, or tunnel deployment run. |
+| E4 - Oracle AI service | BLOCKED | Needs `OPENROUTER_API_KEY`. No AI Secret or Kubernetes apply run. |
+| E5 - CI/CD activation | BLOCKED | Needs `GHCR_PAT` with `write:packages` plus K3s kubeconfig/deploy secret. No workflow trigger run. |
+| E6 - Cross-app SSO verification | BLOCKED | Depends on public `accounts.alsamos.com`, `app.alsamos.com`, and `mail.alsamos.com` being deployed and reachable after E3. |
+
 | Phase | Status | Notes |
 | --- | --- | --- |
 | B - Domain, TLS, ingress, Cloudflare | PARTIAL | cert-manager v1.20.3 installed and verified. Let's Encrypt staging/prod ClusterIssuers are Ready with alsamos.company@gmail.com. Cloudflare Tunnel/DNS is blocked because alsamos.com still uses rdns1/rdns2.ahost.uz and no tunnel token was provided. |
