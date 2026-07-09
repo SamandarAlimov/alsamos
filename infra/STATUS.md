@@ -38,3 +38,17 @@ Credential matrix: S1 Supabase = BLOCKED-EXTERNAL (Supabase CLI browser login is
 | H - CI/CD | DONE | GitHub Actions buildx ARM64 -> GHCR -> Oracle K3s rollout is active. Green run: `https://github.com/SamandarAlimov/alsamos/actions/runs/28958191697`; rollout proof for social/accounts/mail succeeded. |
 | I - Monitoring and backups | DONE | kube-prometheus-stack, Loki, and promtail are deployed internally. PostgreSQL daily MinIO backup CronJob was created and manually verified. |
 | J - Security hardening | DONE | fail2ban enabled. SSH password auth and root login disabled; port 22 preserved. |
+
+## Stage 2 - Phase G/H Data + Identity Dual-Run
+
+| Task | Status | Proof / Blocker |
+| --- | --- | --- |
+| G1 - PostgreSQL backups | DONE | CronJob `data/postgres-backup-to-minio` is applied. Manual job `postgres-backup-stage2-20260708205947` completed and uploaded `local/pg-backups/alsamos-20260708T205948Z.dump`; `mc ls` showed both `alsamos-20260708T073238Z.dump` and `alsamos-20260708T205948Z.dump`. |
+| G2 - PgBouncer pooling | DONE | Added `infra/k8s/pgbouncer.yaml`; deployment `data/pgbouncer` rolled out and `postgres-0` verified `psql -h pgbouncer -p 6432 -U postgres -d alsamos -c "select 1"` returned `1`. |
+| G3 - Oracle social schema | DONE | Applied 51 transformed Supabase migration files into Oracle Postgres schema `social` with standalone stubs for `auth.users`, `auth.uid()`, Supabase roles, storage tables, and `supabase_realtime`; proof: `information_schema` reports 78 base tables in `social`, and `\dt social.*` lists 78 rows. |
+| H1 - Alsamos ID scaffold | DONE | Added `services/alsamos-id` Go service with `/healthz`, `/signup`, `/login`, `/token`, `/userinfo`, `/.well-known/openid-configuration`, and `/jwks.json`; passwords use bcrypt and tokens are RS256. |
+| H2 - Dual-run shadow mode | DONE | Alsamos ID issues tokens independently from `identity.users` in Oracle Postgres; Supabase Auth remains live source of truth and no app cutover was performed. Signup/login responses include `shadow=true`. |
+| H3 - Alsamos ID deploy | PARTIAL | ARM64 image built on Oracle and imported into K3s; K8s Secrets `apps/alsamos-id-jwt` and `apps/alsamos-id-db` created without committing plaintext; deployment `apps/alsamos-id` rolled out Running. Internal proof: discovery and JWKS returned JSON, signup+login returned RS256 JWTs with kid `alsamos-id-stage2`. BLOCKED: public `https://id.alsamos.com` still fails local DNS resolution after adding Cloudflare tunnel DNS route; cert `apps/id-alsamos-com-tls` is `Ready=False` while DNS/cert issuance propagates. |
+| H4 - Kafka KRaft | DONE | Added `infra/k8s/kafka.yaml`; StatefulSet `data/kafka` rolled out with pod `kafka-0` Running, heap `-Xmx512m`, one 10Gi PVC; topics created and listed: `auth.events`, `user.events`. |
+
+Deferred unchanged: live-user migration needs Supabase `auth.users` hash export after dashboard 2FA recovery; live data copy needs Supabase DB connection string.
