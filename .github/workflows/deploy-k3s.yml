@@ -17,5 +17,8 @@ jobs:
         run: |
           mkdir -p /tmp/alsamos-k8s
           cp infra/k8s/apps/frontend-apps.yaml /tmp/alsamos-k8s/frontend-apps.yaml
+          cp infra/k8s/apps/alsamos-gateway.yaml /tmp/alsamos-k8s/alsamos-gateway.yaml
           sed -i "s/PLACEHOLDER_SHA/${GITHUB_SHA}/g" /tmp/alsamos-k8s/frontend-apps.yaml
+          sed -i "s/PLACEHOLDER_SHA/${GITHUB_SHA}/g" /tmp/alsamos-k8s/alsamos-gateway.yaml
           kubectl apply -f /tmp/alsamos-k8s/frontend-apps.yaml
+          kubectl apply -f /tmp/alsamos-k8s/alsamos-gateway.yaml

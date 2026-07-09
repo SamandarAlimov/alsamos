@@ -54,3 +54,12 @@ Credential matrix: S1 Supabase = BLOCKED-EXTERNAL (Supabase CLI browser login is
 CI note: GitHub Actions run `https://github.com/SamandarAlimov/alsamos/actions/runs/28992727993` is still `in_progress`; `ai-gateway`, `accounts-web`, `mail-web`, and `alsamos-id` image builds completed successfully, while `social-web` root image build is still running.
 
 Deferred unchanged: live-user migration needs Supabase `auth.users` hash export after dashboard 2FA recovery; live data copy needs Supabase DB connection string.
+
+## Stage 2 - API Gateway Shadow
+
+| Task | Status | Proof / Blocker |
+| --- | --- | --- |
+| Go gateway scaffold | DONE | Added `services/alsamos-gateway` with `/healthz`, `/readyz`, dual-issuer JWT validation for Alsamos ID RS256 JWKS and Supabase JWKS/optional secret, reverse proxy routes for `/api/social/`, `/api/mail/`, `/api/accounts/`, `/ai/`, Redis-backed per-user/per-IP limiting, WebSocket-compatible reverse proxying, structured logs, and Prometheus `/metrics`. Oracle ARM64 Docker build succeeded and imported image `alsamos-gateway:stage2`. |
+| Shadow deploy | PARTIAL | Deployment `apps/alsamos-gateway` is `1/1` Ready with limits `256Mi/250m`; Service and Ingress `api.alsamos.com` are applied. Internal proof: `/healthz` returned `200`, valid Alsamos ID JWT to `/api/accounts/` returned `200`, invalid JWT returned `401`, rate limit returned `429_at_101`, and `/metrics` exposed `alsamos_gateway_requests_total`. BLOCKED: public `api.alsamos.com` DNS still does not resolve after Cloudflare tunnel route creation, so cert `apps/api-alsamos-com-tls` remains `Ready=False` (`Issuing certificate as Secret does not exist`). |
+
+Deferred unchanged: live app traffic cutover through `api.alsamos.com` waits for public DNS/TLS readiness and parity verification; Supabase-dependent data routes wait for Phase I credentials.

@@ -8,6 +8,7 @@ on:
       - "alsamos-web/**"
       - "apps/**"
       - "infra/k8s/apps/frontend-apps.yaml"
+      - "infra/k8s/apps/alsamos-gateway.yaml"
       - "services/**"
       - ".github/workflows/build-and-push.yml"
 
@@ -32,6 +33,8 @@ jobs:
             context: services/ai
           - name: alsamos-id
             context: services/alsamos-id
+          - name: alsamos-gateway
+            context: services/alsamos-gateway
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -68,10 +71,13 @@ jobs:
           mkdir -p /tmp/alsamos-k8s
           cp infra/k8s/apps/frontend-apps.yaml /tmp/alsamos-k8s/frontend-apps.yaml
           cp infra/k8s/apps/alsamos-id.yaml /tmp/alsamos-k8s/alsamos-id.yaml
+          cp infra/k8s/apps/alsamos-gateway.yaml /tmp/alsamos-k8s/alsamos-gateway.yaml
           sed -i "s/PLACEHOLDER_SHA/${GITHUB_SHA}/g" /tmp/alsamos-k8s/frontend-apps.yaml
           sed -i "s/PLACEHOLDER_SHA/${GITHUB_SHA}/g" /tmp/alsamos-k8s/alsamos-id.yaml
+          sed -i "s/PLACEHOLDER_SHA/${GITHUB_SHA}/g" /tmp/alsamos-k8s/alsamos-gateway.yaml
           scp -i "$HOME/.ssh/alsamos" /tmp/alsamos-k8s/frontend-apps.yaml ubuntu@92.4.76.166:/tmp/alsamos-frontend-apps.yaml
           scp -i "$HOME/.ssh/alsamos" /tmp/alsamos-k8s/alsamos-id.yaml ubuntu@92.4.76.166:/tmp/alsamos-id.yaml
+          scp -i "$HOME/.ssh/alsamos" /tmp/alsamos-k8s/alsamos-gateway.yaml ubuntu@92.4.76.166:/tmp/alsamos-gateway.yaml
           ssh -i "$HOME/.ssh/alsamos" ubuntu@92.4.76.166 "
             sudo k3s kubectl -n apps create secret docker-registry ghcr-pull \
               --docker-server=ghcr.io \
@@ -80,8 +86,10 @@ jobs:
               --dry-run=client -o yaml | sudo k3s kubectl apply -f - &&
             sudo k3s kubectl apply -f /tmp/alsamos-frontend-apps.yaml &&
             sudo k3s kubectl apply -f /tmp/alsamos-id.yaml &&
+            sudo k3s kubectl apply -f /tmp/alsamos-gateway.yaml &&
             sudo k3s kubectl -n apps rollout status deployment/social-web --timeout=180s &&
             sudo k3s kubectl -n apps rollout status deployment/accounts-web --timeout=180s &&
             sudo k3s kubectl -n apps rollout status deployment/mail-web --timeout=180s &&
-            sudo k3s kubectl -n apps rollout status deployment/alsamos-id --timeout=180s
+            sudo k3s kubectl -n apps rollout status deployment/alsamos-id --timeout=180s &&
+            sudo k3s kubectl -n apps rollout status deployment/alsamos-gateway --timeout=180s
           "
