@@ -63,3 +63,15 @@ Deferred unchanged: live-user migration needs Supabase `auth.users` hash export 
 | Shadow deploy | DONE | Deployment `apps/alsamos-gateway` is `1/1` Ready with limits `256Mi/250m`; Service and Ingress `api.alsamos.com` are applied. Internal proof: `/healthz` returned `200`, valid Alsamos ID JWT to `/api/accounts/` returned `200`, invalid JWT returned `401`, rate limit returned `429_at_101`, and `/metrics` exposed `alsamos_gateway_requests_total`. Public proof: `api.alsamos.com` resolves to Cloudflare A/AAAA records, cert `apps/api-alsamos-com-tls` is `Ready=True`, and `curl -I https://api.alsamos.com/healthz` returned `HTTP/1.1 200 OK`. Fix applied: Cloudflare tunnel route exists and CoreDNS forwards `alsamos.com` lookups to public resolvers via `infra/k8s/coredns-alsamos-forward.yaml` to bypass stale Oracle VCN DNS for new subdomains. |
 
 Deferred unchanged: live app traffic cutover through `api.alsamos.com` waits for parity verification; Supabase-dependent data routes wait for Phase I credentials.
+
+## Stage 2 - Real Outbound Mail via Resend
+
+| Task | Status | Proof / Blocker |
+| --- | --- | --- |
+| Audit | DONE | Current mail "send" path was not SMTP/API delivery: `apps/mail/src/hooks/useEmails.ts` only inserted a row into Supabase `emails` with `folder: sent`; `apps/mail/src/hooks/useScheduledEmails.ts` only changed scheduled status to `sent`. This explains Gmail/Yandex delivery failure. |
+| Resend key | DONE | `RESEND_API_KEY` was provided by operator and stored only as Kubernetes Secret `apps/resend-secret`; plaintext was not committed. Gateway also has `apps/gateway-supabase` for Supabase token fallback validation. |
+| Domain auth | BLOCKED | Resend API lists only existing domain `samos.uz`; creating `alsamos.com` returned `403` with message `Your plan includes 1 domain. Upgrade to add more.` Resend did not issue SPF/DKIM DNS records for `alsamos.com`, so Cloudflare DNS changes cannot be applied yet. Zoho MX/SPF/DKIM/DMARC were not changed. |
+| Wire send path | DONE | Mail frontend repo `github.com/SamandarAlimov/mail` commit `01e483b` routes compose send through `https://api.alsamos.com/api/mail/send` before saving to Sent. Gateway image `alsamos-gateway:resend` rolled out `1/1`; public proof: `curl -I https://api.alsamos.com/healthz` returned `HTTP/1.1 200 OK`. |
+| Test Gmail/Yandex | BLOCKED | Deferred until Resend domain `alsamos.com` is created and verified; branded `no-reply@alsamos.com` delivery cannot be accepted before Resend domain verification. |
+
+Remaining mail action: in Resend, remove/replace the old `samos.uz` domain or upgrade the plan, then create and verify `alsamos.com`; Resend will then provide the exact SPF/DKIM DNS records to merge into Cloudflare without removing Zoho MX.

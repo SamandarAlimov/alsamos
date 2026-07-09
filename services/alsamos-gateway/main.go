@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"encoding/base64"
@@ -37,6 +38,10 @@ type app struct {
 	requests  *prometheus.CounterVec
 	latency   *prometheus.HistogramVec
 	limitEach int
+	resendKey string
+	resendFrom string
+	supabaseURL string
+	supabaseAnonKey string
 }
 
 type issuer struct {
@@ -68,6 +73,10 @@ func main() {
 		},
 		limiter:   newRedisLimiter(env("REDIS_ADDR", "redis.data.svc.cluster.local:6379"), env("REDIS_PASSWORD", "")),
 		limitEach: envInt("RATE_LIMIT_PER_MINUTE", 100),
+		resendKey: os.Getenv("RESEND_API_KEY"),
+		resendFrom: env("RESEND_FROM", "Alsamos <no-reply@alsamos.com>"),
+		supabaseURL: strings.TrimRight(env("SUPABASE_URL", "https://mbhjganbihamoiqmankv.supabase.co"), "/"),
+		supabaseAnonKey: os.Getenv("SUPABASE_PUBLISHABLE_KEY"),
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "alsamos_gateway_requests_total",
 			Help: "Total gateway requests.",
@@ -88,6 +97,7 @@ func main() {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("/readyz", a.ready)
 	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/api/mail/send", a.sendMail)
 	mux.HandleFunc("/", a.gateway)
 
 	srv := &http.Server{Addr: ":8080", Handler: a.observe(mux), ReadHeaderTimeout: 10 * time.Second}
@@ -169,7 +179,137 @@ func (a *app) authenticate(r *http.Request) (claims, error) {
 		}
 		last = err
 	}
+	if c, err := a.supabaseUser(r.Context(), raw); err == nil {
+		return c, nil
+	}
 	return claims{}, last
+}
+
+func (a *app) sendMail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method_not_allowed"})
+		return
+	}
+	if a.resendKey == "" {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "resend_not_configured"})
+		return
+	}
+	c, err := a.authenticate(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
+		return
+	}
+	ip := clientIP(r)
+	if !a.allow(r.Context(), "ip:"+ip) || !a.allow(r.Context(), "user:"+c.Sub) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate_limited"})
+		return
+	}
+
+	var in struct {
+		To      []mailRecipient `json:"to"`
+		CC      []mailRecipient `json:"cc"`
+		Subject string          `json:"subject"`
+		HTML    string          `json:"html"`
+		Text    string          `json:"text"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_json"})
+		return
+	}
+	to := cleanRecipients(in.To)
+	cc := cleanRecipients(in.CC)
+	if len(to) == 0 || strings.TrimSpace(in.Subject) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "to_and_subject_required"})
+		return
+	}
+	payload := map[string]any{
+		"from":    a.resendFrom,
+		"to":      to,
+		"subject": strings.TrimSpace(in.Subject),
+	}
+	if len(cc) > 0 {
+		payload["cc"] = cc
+	}
+	if strings.TrimSpace(in.HTML) != "" {
+		payload["html"] = in.HTML
+	}
+	if strings.TrimSpace(in.Text) != "" {
+		payload["text"] = in.Text
+	}
+	if payload["html"] == nil && payload["text"] == nil {
+		payload["text"] = " "
+	}
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+a.resendKey)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		a.log.Warn("resend_send_failed", "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "resend_unreachable"})
+		return
+	}
+	defer res.Body.Close()
+	var out map[string]any
+	_ = json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&out)
+	if res.StatusCode/100 != 2 {
+		a.log.Warn("resend_rejected", "status", res.StatusCode, "body", out)
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "resend_rejected", "status": res.StatusCode})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "accepted", "provider": "resend", "id": out["id"]})
+}
+
+type mailRecipient struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+func cleanRecipients(in []mailRecipient) []string {
+	out := make([]string, 0, len(in))
+	for _, r := range in {
+		email := strings.TrimSpace(r.Email)
+		if email == "" || !strings.Contains(email, "@") {
+			continue
+		}
+		name := strings.TrimSpace(r.Name)
+		if name != "" {
+			name = strings.ReplaceAll(name, "\"", "")
+			out = append(out, fmt.Sprintf("%s <%s>", name, email))
+		} else {
+			out = append(out, email)
+		}
+	}
+	return out
+}
+
+func (a *app) supabaseUser(ctx context.Context, raw string) (claims, error) {
+	if a.supabaseAnonKey == "" || a.supabaseURL == "" {
+		return claims{}, errors.New("supabase_fallback_disabled")
+	}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, a.supabaseURL+"/auth/v1/user", nil)
+	req.Header.Set("Authorization", "Bearer "+raw)
+	req.Header.Set("apikey", a.supabaseAnonKey)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return claims{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 {
+		return claims{}, fmt.Errorf("supabase user status %d", res.StatusCode)
+	}
+	var u struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&u); err != nil {
+		return claims{}, err
+	}
+	if u.ID == "" {
+		return claims{}, errors.New("missing supabase user id")
+	}
+	return claims{Sub: u.ID, Email: u.Email, Iss: a.supabaseURL + "/auth/v1"}, nil
 }
 
 func (is *issuer) validate(ctx context.Context, raw string) (claims, error) {
@@ -407,7 +547,7 @@ func readLine(r io.Reader) (string, error) {
 }
 
 func routeLabel(path string) string {
-	for _, p := range []string{"/api/social/", "/api/mail/", "/api/accounts/", "/ai/"} {
+	for _, p := range []string{"/api/mail/send", "/api/social/", "/api/mail/", "/api/accounts/", "/ai/"} {
 		if strings.HasPrefix(path, p) {
 			return strings.TrimSuffix(p, "/")
 		}

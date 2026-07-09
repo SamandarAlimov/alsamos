@@ -31,6 +31,20 @@ spec:
               value: https://mbhjganbihamoiqmankv.supabase.co/auth/v1
             - name: SUPABASE_JWKS_URL
               value: https://mbhjganbihamoiqmankv.supabase.co/auth/v1/.well-known/jwks.json
+            - name: SUPABASE_URL
+              value: https://mbhjganbihamoiqmankv.supabase.co
+            - name: SUPABASE_PUBLISHABLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gateway-supabase
+                  key: SUPABASE_PUBLISHABLE_KEY
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: resend-secret
+                  key: RESEND_API_KEY
+            - name: RESEND_FROM
+              value: Alsamos <no-reply@alsamos.com>
             - name: SOCIAL_URL
               value: http://social-web.apps.svc.cluster.local
             - name: MAIL_URL
