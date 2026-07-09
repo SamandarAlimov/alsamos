@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alsamos-id
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alsamos-id
+  template:
+    metadata:
+      labels:
+        app: alsamos-id
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: api
+          image: ghcr.io/samandaralimov/alsamos-alsamos-id:PLACEHOLDER_SHA
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ISSUER
+              value: https://id.alsamos.com
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: alsamos-id-db
+                  key: DATABASE_URL
+            - name: JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: alsamos-id-jwt
+                  key: private.pem
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: alsamos-id-jwt
+                  key: public.pem
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 250m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alsamos-id
+  namespace: apps
+spec:
+  selector:
+    app: alsamos-id
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: alsamos-id
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - id.alsamos.com
+      secretName: id-alsamos-com-tls
+  rules:
+    - host: id.alsamos.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: alsamos-id
+                port:
+                  number: 8080
