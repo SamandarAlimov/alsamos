@@ -75,3 +75,7 @@ Deferred unchanged: live app traffic cutover through `api.alsamos.com` waits for
 | Test Gmail/Yandex | BLOCKED | `POST /domains/1f6bd1a9-1996-40fa-a25d-c4a967b158b7/verify` succeeded but `GET /domains/{id}` remains `status: pending` with all Resend records pending. Deferred until Cloudflare DNS records above are applied and Resend reports `verified`; no Gmail/Yandex test send was attempted. |
 
 Remaining mail action: add the listed DNS records in Cloudflare, then rerun Resend verify and send the Gmail/Yandex test emails.
+
+### 2026-07-09 Cloudflare DNS Attempt
+
+Status: BLOCKED-NEEDS-CLOUDFLARE-TOKEN. `CLOUDFLARE_API_TOKEN` / `CF_API_TOKEN` was not present in the local environment, so Cloudflare Zone ID lookup and DNS writes were not attempted. Authoritative Resend `GET /domains/1f6bd1a9-1996-40fa-a25d-c4a967b158b7` still reports `status: pending` and requires these records: `resend._domainkey TXT p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDWlf3OtoY8mFn6zknLkpa9LY+AGVb0pYDZWBvP8fbnfekgcVgK+O+YvQge3dKsa0myMadKhWodoceTtUx6KStRildJwsMIrQiWE4EwmIfeMkPaEqDC92Qa6vhFCmzL2qzmjGvt9NYlFN9nB1Bs2NdSD+WKS9Ixx0zWJT6WET2XaQIDAQAB`, `send MX 10 feedback-smtp.us-east-1.amazonses.com`, and `send TXT v=spf1 include:amazonses.com ~all`; root SPF still must be merged with `include:amazonses.com` without removing existing Zoho/MX-related terms. Resend verify/test email steps were not run because DNS could not be applied.
