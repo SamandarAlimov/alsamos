@@ -45,6 +45,11 @@ spec:
                   key: RESEND_API_KEY
             - name: RESEND_FROM
               value: Alsamos <no-reply@alsamos.com>
+            - name: INBOUND_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gateway-inbound-secret
+                  key: INBOUND_SHARED_SECRET
             - name: SOCIAL_URL
               value: http://social-web.apps.svc.cluster.local
             - name: MAIL_URL

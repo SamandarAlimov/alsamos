@@ -31,17 +31,18 @@ type ctxKey string
 const claimsKey ctxKey = "claims"
 
 type app struct {
-	log       *slog.Logger
-	issuers   []*issuer
-	routes    map[string]*url.URL
-	limiter   *redisLimiter
-	requests  *prometheus.CounterVec
-	latency   *prometheus.HistogramVec
-	limitEach int
-	resendKey string
-	resendFrom string
-	supabaseURL string
+	log             *slog.Logger
+	issuers         []*issuer
+	routes          map[string]*url.URL
+	limiter         *redisLimiter
+	requests        *prometheus.CounterVec
+	latency         *prometheus.HistogramVec
+	limitEach       int
+	resendKey       string
+	resendFrom      string
+	supabaseURL     string
 	supabaseAnonKey string
+	inboundSecret   string
 }
 
 type issuer struct {
@@ -71,12 +72,13 @@ func main() {
 			"/api/accounts/": mustURL(env("ACCOUNTS_URL", "http://accounts-web.apps.svc.cluster.local")),
 			"/ai/":           mustURL(env("AI_URL", "http://ai-gateway.apps.svc.cluster.local:8000")),
 		},
-		limiter:   newRedisLimiter(env("REDIS_ADDR", "redis.data.svc.cluster.local:6379"), env("REDIS_PASSWORD", "")),
-		limitEach: envInt("RATE_LIMIT_PER_MINUTE", 100),
-		resendKey: os.Getenv("RESEND_API_KEY"),
-		resendFrom: env("RESEND_FROM", "Alsamos <no-reply@alsamos.com>"),
-		supabaseURL: strings.TrimRight(env("SUPABASE_URL", "https://mbhjganbihamoiqmankv.supabase.co"), "/"),
+		limiter:         newRedisLimiter(env("REDIS_ADDR", "redis.data.svc.cluster.local:6379"), env("REDIS_PASSWORD", "")),
+		limitEach:       envInt("RATE_LIMIT_PER_MINUTE", 100),
+		resendKey:       os.Getenv("RESEND_API_KEY"),
+		resendFrom:      env("RESEND_FROM", "Alsamos <no-reply@alsamos.com>"),
+		supabaseURL:     strings.TrimRight(env("SUPABASE_URL", "https://mbhjganbihamoiqmankv.supabase.co"), "/"),
 		supabaseAnonKey: os.Getenv("SUPABASE_PUBLISHABLE_KEY"),
+		inboundSecret:   os.Getenv("INBOUND_SHARED_SECRET"),
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "alsamos_gateway_requests_total",
 			Help: "Total gateway requests.",
@@ -94,10 +96,13 @@ func main() {
 	prometheus.MustRegister(a.requests, a.latency)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]string{"status": "ok"}) })
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 	mux.HandleFunc("/readyz", a.ready)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/api/mail/send", a.sendMail)
+	mux.HandleFunc("/api/mail/inbound", a.receiveInboundMail)
 	mux.HandleFunc("/", a.gateway)
 
 	srv := &http.Server{Addr: ":8080", Handler: a.observe(a.cors(mux)), ReadHeaderTimeout: 10 * time.Second}
@@ -289,6 +294,91 @@ func (a *app) sendMail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "accepted", "provider": "resend", "id": out["id"]})
+}
+
+func (a *app) receiveInboundMail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method_not_allowed"})
+		return
+	}
+	if a.inboundSecret == "" || a.supabaseAnonKey == "" {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "inbound_not_configured"})
+		return
+	}
+	if r.Header.Get("X-Alsamos-Inbound-Secret") != a.inboundSecret {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_inbound_secret"})
+		return
+	}
+
+	var in inboundMailRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 2<<20)).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_json"})
+		return
+	}
+	if strings.TrimSpace(in.To) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "to_required"})
+		return
+	}
+	if strings.TrimSpace(in.MessageID) == "" {
+		in.MessageID = in.RawMessageID
+	}
+	id, err := a.insertInboundEmail(r.Context(), in)
+	if err != nil {
+		a.log.Warn("inbound_insert_failed", "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "supabase_insert_failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "inserted", "id": id})
+}
+
+type inboundMailRequest struct {
+	To           string `json:"to"`
+	FromName     string `json:"from_name"`
+	FromEmail    string `json:"from_email"`
+	Subject      string `json:"subject"`
+	HTML         string `json:"html"`
+	Text         string `json:"text"`
+	MessageID    string `json:"message_id"`
+	RawMessageID string `json:"raw_message_id"`
+}
+
+func (a *app) insertInboundEmail(ctx context.Context, in inboundMailRequest) (string, error) {
+	payload := map[string]string{
+		"p_secret":     a.inboundSecret,
+		"p_to":         strings.TrimSpace(in.To),
+		"p_from_name":  strings.TrimSpace(in.FromName),
+		"p_from_email": strings.TrimSpace(in.FromEmail),
+		"p_subject":    strings.TrimSpace(in.Subject),
+		"p_body_html":  in.HTML,
+		"p_body_text":  in.Text,
+		"p_message_id": strings.TrimSpace(in.MessageID),
+	}
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, a.supabaseURL+"/rest/v1/rpc/insert_inbound_email", bytes.NewReader(body))
+	req.Header.Set("apikey", a.supabaseAnonKey)
+	req.Header.Set("Authorization", "Bearer "+a.supabaseAnonKey)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if res.StatusCode/100 != 2 {
+		return "", fmt.Errorf("rpc status %d: %s", res.StatusCode, strings.TrimSpace(string(out)))
+	}
+	var id string
+	if err := json.Unmarshal(out, &id); err == nil && id != "" {
+		return id, nil
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out, &doc); err == nil {
+		if v, ok := doc["insert_inbound_email"].(string); ok {
+			return v, nil
+		}
+	}
+	return strings.Trim(string(out), "\" \n\t"), nil
 }
 
 type mailRecipient struct {
@@ -577,7 +667,7 @@ func readLine(r io.Reader) (string, error) {
 }
 
 func routeLabel(path string) string {
-	for _, p := range []string{"/api/mail/send", "/api/social/", "/api/mail/", "/api/accounts/", "/ai/"} {
+	for _, p := range []string{"/api/mail/inbound", "/api/mail/send", "/api/social/", "/api/mail/", "/api/accounts/", "/ai/"} {
 		if strings.HasPrefix(path, p) {
 			return strings.TrimSuffix(p, "/")
 		}
