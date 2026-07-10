@@ -100,7 +100,7 @@ func main() {
 	mux.HandleFunc("/api/mail/send", a.sendMail)
 	mux.HandleFunc("/", a.gateway)
 
-	srv := &http.Server{Addr: ":8080", Handler: a.observe(mux), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: ":8080", Handler: a.observe(a.cors(mux)), ReadHeaderTimeout: 10 * time.Second}
 	logger.Info("alsamos-gateway listening", "addr", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("server stopped", "error", err)
@@ -116,6 +116,36 @@ func (a *app) ready(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
+}
+
+func (a *app) cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if allowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "authorization,apikey,content-type,x-client-info,prefer")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func allowedOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "alsamos.com" || strings.HasSuffix(host, ".alsamos.com")
 }
 
 func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
