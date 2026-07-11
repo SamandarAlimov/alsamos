@@ -235,6 +235,7 @@ func (a *app) sendMail(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
 		return
 	}
+	rawToken := bearerToken(r)
 	ip := clientIP(r)
 	if !a.allow(r.Context(), "ip:"+ip) || !a.allow(r.Context(), "user:"+c.Sub) {
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate_limited"})
@@ -258,10 +259,17 @@ func (a *app) sendMail(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "to_and_subject_required"})
 		return
 	}
+	sender, err := a.senderIdentity(r.Context(), rawToken, c.Sub)
+	if err != nil {
+		a.log.Warn("sender_identity_failed", "user", c.Sub, "error", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sender_alias_not_configured"})
+		return
+	}
 	payload := map[string]any{
-		"from":    a.resendFrom,
-		"to":      to,
-		"subject": strings.TrimSpace(in.Subject),
+		"from":     sender.Formatted,
+		"reply_to": sender.Email,
+		"to":       to,
+		"subject":  strings.TrimSpace(in.Subject),
 	}
 	if len(cc) > 0 {
 		payload["cc"] = cc
@@ -293,7 +301,97 @@ func (a *app) sendMail(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "resend_rejected", "status": res.StatusCode})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": "accepted", "provider": "resend", "id": out["id"]})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":   "accepted",
+		"provider": "resend",
+		"id":       out["id"],
+		"sender": map[string]string{
+			"name":  sender.Name,
+			"email": sender.Email,
+		},
+	})
+}
+
+type senderIdentity struct {
+	Name      string
+	Email     string
+	Formatted string
+}
+
+func (a *app) senderIdentity(ctx context.Context, rawToken, userID string) (senderIdentity, error) {
+	if a.supabaseURL == "" || a.supabaseAnonKey == "" || rawToken == "" || userID == "" {
+		return senderIdentity{}, errors.New("sender_lookup_not_configured")
+	}
+	alias, err := a.lookupMailboxAlias(ctx, rawToken, userID)
+	if err != nil {
+		return senderIdentity{}, err
+	}
+	alias = strings.TrimSpace(strings.TrimPrefix(alias, "@"))
+	if alias == "" || strings.Contains(alias, "@") {
+		return senderIdentity{}, errors.New("invalid_alias")
+	}
+	name := strings.TrimSpace(a.lookupDisplayName(ctx, rawToken, userID))
+	if name == "" {
+		name = alias
+	}
+	email := alias + "@alsamos.com"
+	return senderIdentity{
+		Name:      name,
+		Email:     email,
+		Formatted: fmt.Sprintf("%s <%s>", sanitizeMailName(name), email),
+	}, nil
+}
+
+func (a *app) lookupMailboxAlias(ctx context.Context, rawToken, userID string) (string, error) {
+	endpoint := a.supabaseURL + "/rest/v1/mailbox_aliases?select=alias&user_id=eq." + url.QueryEscape(userID) + "&limit=1"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	a.setSupabaseUserHeaders(req, rawToken)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 {
+		out, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+		return "", fmt.Errorf("mailbox_aliases status %d: %s", res.StatusCode, strings.TrimSpace(string(out)))
+	}
+	var rows []struct {
+		Alias string `json:"alias"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&rows); err != nil {
+		return "", err
+	}
+	if len(rows) == 0 || strings.TrimSpace(rows[0].Alias) == "" {
+		return "", errors.New("missing_mailbox_alias")
+	}
+	return rows[0].Alias, nil
+}
+
+func (a *app) lookupDisplayName(ctx context.Context, rawToken, userID string) string {
+	endpoint := a.supabaseURL + "/rest/v1/profiles?select=display_name&user_id=eq." + url.QueryEscape(userID) + "&limit=1"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	a.setSupabaseUserHeaders(req, rawToken)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 {
+		return ""
+	}
+	var rows []struct {
+		DisplayName string `json:"display_name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&rows); err != nil || len(rows) == 0 {
+		return ""
+	}
+	return rows[0].DisplayName
+}
+
+func (a *app) setSupabaseUserHeaders(req *http.Request, rawToken string) {
+	req.Header.Set("apikey", a.supabaseAnonKey)
+	req.Header.Set("Authorization", "Bearer "+rawToken)
+	req.Header.Set("Accept", "application/json")
 }
 
 func (a *app) receiveInboundMail(w http.ResponseWriter, r *http.Request) {
@@ -402,6 +500,25 @@ func cleanRecipients(in []mailRecipient) []string {
 		}
 	}
 	return out
+}
+
+func bearerToken(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+}
+
+func sanitizeMailName(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, "\r", " ")
+	name = strings.ReplaceAll(name, "\n", " ")
+	name = strings.ReplaceAll(name, "\"", "")
+	if name == "" {
+		return "Alsamos"
+	}
+	return name
 }
 
 func (a *app) supabaseUser(ctx context.Context, raw string) (claims, error) {
