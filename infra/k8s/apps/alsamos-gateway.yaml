@@ -50,6 +50,26 @@ spec:
                 secretKeyRef:
                   name: gateway-inbound-secret
                   key: INBOUND_SHARED_SECRET
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-media-secret
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-media-secret
+                  key: MINIO_SECRET_KEY
+            - name: MINIO_REGION
+              value: us-east-1
+            - name: MEDIA_BUCKET
+              value: media
+            - name: MEDIA_ENDPOINT
+              value: https://media.alsamos.com
+            - name: MEDIA_BASE_URL
+              value: https://media.alsamos.com/media
+            - name: MEDIA_MAX_UPLOAD_MB
+              value: "50"
             - name: SOCIAL_URL
               value: http://social-web.apps.svc.cluster.local
             - name: MAIL_URL

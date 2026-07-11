@@ -3,8 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +20,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +48,13 @@ type app struct {
 	supabaseURL     string
 	supabaseAnonKey string
 	inboundSecret   string
+	minioAccessKey  string
+	minioSecretKey  string
+	minioRegion     string
+	mediaBucket     string
+	mediaEndpoint   string
+	mediaBaseURL    string
+	maxUploadBytes  int64
 }
 
 type issuer struct {
@@ -79,6 +91,13 @@ func main() {
 		supabaseURL:     strings.TrimRight(env("SUPABASE_URL", "https://mbhjganbihamoiqmankv.supabase.co"), "/"),
 		supabaseAnonKey: os.Getenv("SUPABASE_PUBLISHABLE_KEY"),
 		inboundSecret:   os.Getenv("INBOUND_SHARED_SECRET"),
+		minioAccessKey:  os.Getenv("MINIO_ACCESS_KEY"),
+		minioSecretKey:  os.Getenv("MINIO_SECRET_KEY"),
+		minioRegion:     env("MINIO_REGION", "us-east-1"),
+		mediaBucket:     env("MEDIA_BUCKET", "media"),
+		mediaEndpoint:   strings.TrimRight(env("MEDIA_ENDPOINT", "https://media.alsamos.com"), "/"),
+		mediaBaseURL:    strings.TrimRight(env("MEDIA_BASE_URL", "https://media.alsamos.com/media"), "/"),
+		maxUploadBytes:  int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "alsamos_gateway_requests_total",
 			Help: "Total gateway requests.",
@@ -103,6 +122,8 @@ func main() {
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/api/mail/send", a.sendMail)
 	mux.HandleFunc("/api/mail/inbound", a.receiveInboundMail)
+	mux.HandleFunc("/api/media/presign", a.presignMediaUpload)
+	mux.HandleFunc("/api/media/sign", a.signPrivateMedia)
 	mux.HandleFunc("/", a.gateway)
 
 	srv := &http.Server{Addr: ":8080", Handler: a.observe(a.cors(mux)), ReadHeaderTimeout: 10 * time.Second}
@@ -519,6 +540,265 @@ func sanitizeMailName(name string) string {
 		return "Alsamos"
 	}
 	return name
+}
+
+func (a *app) presignMediaUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method_not_allowed"})
+		return
+	}
+	if !a.mediaConfigured() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "media_storage_not_configured"})
+		return
+	}
+	c, err := a.authenticate(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
+		return
+	}
+	ip := clientIP(r)
+	if !a.allow(r.Context(), "ip:"+ip) || !a.allow(r.Context(), "user:"+c.Sub) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate_limited"})
+		return
+	}
+
+	var in struct {
+		Filename    string `json:"filename"`
+		ContentType string `json:"content_type"`
+		Size        int64  `json:"size"`
+		Type        string `json:"type"`
+		Visibility  string `json:"visibility"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_json"})
+		return
+	}
+	if in.Size <= 0 || in.Size > a.maxUploadBytes {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "file_too_large", "max_bytes": a.maxUploadBytes})
+		return
+	}
+	contentType := strings.ToLower(strings.TrimSpace(in.ContentType))
+	if !allowedMediaType(contentType) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported_content_type"})
+		return
+	}
+	kind := mediaKind(in.Type, contentType)
+	visibility := strings.ToLower(strings.TrimSpace(in.Visibility))
+	if visibility == "" {
+		visibility = "public"
+	}
+	if visibility != "public" && visibility != "private" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_visibility"})
+		return
+	}
+	key := mediaObjectKey(kind, c.Sub, in.Filename, contentType)
+	if visibility == "private" {
+		key = "private/" + key
+	}
+	uploadURL, err := a.presignedS3URL(http.MethodPut, a.mediaBucket, key, 15*time.Minute)
+	if err != nil {
+		a.log.Warn("media_presign_failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "presign_failed"})
+		return
+	}
+	out := map[string]any{
+		"upload_url": uploadURL,
+		"method":     http.MethodPut,
+		"bucket":     a.mediaBucket,
+		"key":        key,
+		"visibility": visibility,
+		"headers": map[string]string{
+			"Content-Type":  contentType,
+			"Cache-Control": "public, max-age=31536000, immutable",
+		},
+	}
+	if visibility == "public" {
+		out["public_url"] = a.mediaBaseURL + "/" + s3EscapePath(key)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (a *app) signPrivateMedia(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method_not_allowed"})
+		return
+	}
+	if !a.mediaConfigured() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "media_storage_not_configured"})
+		return
+	}
+	if _, err := a.authenticate(r); err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
+		return
+	}
+	key := strings.TrimSpace(r.URL.Query().Get("key"))
+	if key == "" || strings.Contains(key, "..") || strings.HasPrefix(key, "/") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_key"})
+		return
+	}
+	if !strings.HasPrefix(key, "private/") {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "not_private_media"})
+		return
+	}
+	signedURL, err := a.presignedS3URL(http.MethodGet, a.mediaBucket, key, 10*time.Minute)
+	if err != nil {
+		a.log.Warn("media_private_sign_failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "sign_failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"url":        signedURL,
+		"expires_in": 600,
+	})
+}
+
+func (a *app) mediaConfigured() bool {
+	return a.minioAccessKey != "" && a.minioSecretKey != "" && a.mediaEndpoint != "" && a.mediaBucket != ""
+}
+
+func allowedMediaType(contentType string) bool {
+	if contentType == "" {
+		return false
+	}
+	if strings.HasPrefix(contentType, "image/") || strings.HasPrefix(contentType, "video/") || strings.HasPrefix(contentType, "audio/") {
+		return true
+	}
+	switch contentType {
+	case "application/pdf", "text/plain", "text/csv", "application/zip", "application/json",
+		"application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+		return true
+	default:
+		return false
+	}
+}
+
+func mediaKind(requested, contentType string) string {
+	requested = strings.ToLower(strings.TrimSpace(requested))
+	switch requested {
+	case "avatar", "post", "chat", "mail", "story", "product", "miniapp", "verification":
+		return requested
+	}
+	switch {
+	case strings.HasPrefix(contentType, "image/"):
+		return "image"
+	case strings.HasPrefix(contentType, "video/"):
+		return "video"
+	case strings.HasPrefix(contentType, "audio/"):
+		return "audio"
+	default:
+		return "file"
+	}
+}
+
+func mediaObjectKey(kind, userID, filename, contentType string) string {
+	ext := strings.ToLower(path.Ext(strings.TrimSpace(filename)))
+	if ext == "" {
+		ext = extensionForContentType(contentType)
+	}
+	if ext == "" || len(ext) > 12 {
+		ext = ".bin"
+	}
+	id := randomObjectID()
+	return path.Join(kind, userID, id+ext)
+}
+
+func extensionForContentType(contentType string) string {
+	switch strings.ToLower(contentType) {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	case "video/mp4":
+		return ".mp4"
+	case "audio/mpeg":
+		return ".mp3"
+	case "audio/webm":
+		return ".webm"
+	case "application/pdf":
+		return ".pdf"
+	default:
+		return ""
+	}
+}
+
+func randomObjectID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err == nil {
+		return hex.EncodeToString(b[:])
+	}
+	sum := sha256.Sum256([]byte(strconv.FormatInt(time.Now().UnixNano(), 10)))
+	return hex.EncodeToString(sum[:16])
+}
+
+func (a *app) presignedS3URL(method, bucket, key string, expires time.Duration) (string, error) {
+	base, err := url.Parse(a.mediaEndpoint)
+	if err != nil {
+		return "", err
+	}
+	now := time.Now().UTC()
+	amzDate := now.Format("20060102T150405Z")
+	shortDate := now.Format("20060102")
+	credentialScope := shortDate + "/" + a.minioRegion + "/s3/aws4_request"
+	objectPath := "/" + bucket + "/" + s3EscapePath(key)
+	q := url.Values{}
+	q.Set("X-Amz-Algorithm", "AWS4-HMAC-SHA256")
+	q.Set("X-Amz-Credential", a.minioAccessKey+"/"+credentialScope)
+	q.Set("X-Amz-Date", amzDate)
+	q.Set("X-Amz-Expires", strconv.Itoa(int(expires.Seconds())))
+	q.Set("X-Amz-SignedHeaders", "host")
+	canonicalQuery := canonicalQueryString(q)
+	canonicalHeaders := "host:" + strings.ToLower(base.Host) + "\n"
+	canonicalRequest := strings.Join([]string{
+		method,
+		objectPath,
+		canonicalQuery,
+		canonicalHeaders,
+		"host",
+		"UNSIGNED-PAYLOAD",
+	}, "\n")
+	hash := sha256.Sum256([]byte(canonicalRequest))
+	stringToSign := strings.Join([]string{
+		"AWS4-HMAC-SHA256",
+		amzDate,
+		credentialScope,
+		hex.EncodeToString(hash[:]),
+	}, "\n")
+	signature := hex.EncodeToString(hmacSHA256(signingKey(a.minioSecretKey, shortDate, a.minioRegion), []byte(stringToSign)))
+	q.Set("X-Amz-Signature", signature)
+	base.Path = objectPath
+	base.RawQuery = canonicalQueryString(q)
+	return base.String(), nil
+}
+
+func s3EscapePath(key string) string {
+	parts := strings.Split(key, "/")
+	for i, p := range parts {
+		parts[i] = url.PathEscape(p)
+	}
+	return strings.Join(parts, "/")
+}
+
+func canonicalQueryString(v url.Values) string {
+	return v.Encode()
+}
+
+func signingKey(secret, date, region string) []byte {
+	kDate := hmacSHA256([]byte("AWS4"+secret), []byte(date))
+	kRegion := hmacSHA256(kDate, []byte(region))
+	kService := hmacSHA256(kRegion, []byte("s3"))
+	return hmacSHA256(kService, []byte("aws4_request"))
+}
+
+func hmacSHA256(key, data []byte) []byte {
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write(data)
+	return mac.Sum(nil)
 }
 
 func (a *app) supabaseUser(ctx context.Context, raw string) (claims, error) {
