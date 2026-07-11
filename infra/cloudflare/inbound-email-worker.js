@@ -1,15 +1,24 @@
+import PostalMime from "postal-mime";
+
 export default {
-  async email(message, env, ctx) {
-    const raw = await new Response(message.raw).text();
-    const parsed = parseRawEmail(raw, message.headers);
+  async email(message, env) {
+    const raw = await new Response(message.raw).arrayBuffer();
+    const parsed = await PostalMime.parse(raw);
+    const htmlWithInlineImages = inlineCidImages(parsed.html || "", parsed.attachments || []);
+    const text = parsed.text || "";
+    const html = htmlWithInlineImages || textToHtml(text);
+    const from = parsed.from || {};
+
     const payload = {
-      to: message.to,
-      from_name: parsed.fromName,
-      from_email: parsed.fromEmail,
-      subject: parsed.subject || message.headers.get("subject") || "",
-      html: parsed.html,
-      text: parsed.text,
-      message_id: parsed.messageId || message.headers.get("message-id") || crypto.randomUUID(),
+      to: firstAddress(parsed.to) || message.to,
+      cc: addresses(parsed.cc),
+      from_name: from.name || "",
+      from_email: from.address || "",
+      subject: parsed.subject || "",
+      html,
+      text,
+      message_id: cleanMessageId(parsed.messageId || message.headers.get("message-id")) || crypto.randomUUID(),
+      attachments: attachmentMetadata(parsed.attachments || []),
     };
 
     const res = await fetch(env.INBOUND_WEBHOOK_URL, {
@@ -27,49 +36,77 @@ export default {
   },
 };
 
-function parseRawEmail(raw, headers) {
-  const from = headers.get("from") || "";
-  const match = from.match(/^(?:"?([^"<]*)"?\s*)?<([^>]+)>$/);
-  const fromName = match ? match[1].trim() : "";
-  const fromEmail = match ? match[2].trim() : from.trim();
-  const subject = decodeHeader(headers.get("subject") || "");
-  const messageId = (headers.get("message-id") || "").replace(/^<|>$/g, "");
-  return {
-    fromName,
-    fromEmail,
-    subject,
-    messageId,
-    html: extractPart(raw, "text/html"),
-    text: extractPart(raw, "text/plain") || raw.slice(0, 120000),
-  };
+function firstAddress(value) {
+  const list = Array.isArray(value) ? value : value ? [value] : [];
+  return list[0]?.address || "";
 }
 
-function extractPart(raw, contentType) {
-  const lower = raw.toLowerCase();
-  const marker = `content-type: ${contentType}`;
-  const start = lower.indexOf(marker);
-  if (start === -1) {
-    return "";
-  }
-  const bodyStart = raw.indexOf("\r\n\r\n", start);
-  if (bodyStart === -1) {
-    return "";
-  }
-  let body = raw.slice(bodyStart + 4);
-  const boundary = body.match(/\r\n--[^\r\n-]+/);
-  if (boundary) {
-    body = body.slice(0, boundary.index);
-  }
-  return body.trim().slice(0, 120000);
+function addresses(value) {
+  const list = Array.isArray(value) ? value : value ? [value] : [];
+  return list
+    .filter((item) => item?.address)
+    .map((item) => ({ name: item.name || "", email: item.address }));
 }
 
-function decodeHeader(value) {
-  return value.replace(/=\?utf-8\?b\?([^?]+)\?=/gi, (_, b64) => {
-    try {
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      return new TextDecoder().decode(bytes);
-    } catch {
-      return value;
-    }
-  });
+function cleanMessageId(value) {
+  return (value || "").replace(/^<|>$/g, "").trim();
+}
+
+function inlineCidImages(html, attachments) {
+  let output = html || "";
+  for (const attachment of attachments) {
+    const cid = cleanMessageId(attachment.contentId || attachment.cid);
+    const mimeType = attachment.mimeType || attachment.contentType || "";
+    if (!cid || !mimeType.startsWith("image/") || !attachment.content) continue;
+    const dataUri = `data:${mimeType};base64,${toBase64(attachment.content)}`;
+    output = output.replace(new RegExp(`cid:${escapeRegExp(cid)}`, "gi"), dataUri);
+  }
+  return output;
+}
+
+function attachmentMetadata(attachments) {
+  return attachments
+    .filter((attachment) => !attachment.contentId && attachment.disposition !== "inline")
+    .map((attachment) => ({
+      name: attachment.filename || "attachment",
+      size: byteLength(attachment.content),
+      type: attachment.mimeType || attachment.contentType || "application/octet-stream",
+      content_id: cleanMessageId(attachment.contentId || attachment.cid),
+    }));
+}
+
+function byteLength(content) {
+  if (!content) return 0;
+  if (content instanceof ArrayBuffer) return content.byteLength;
+  if (ArrayBuffer.isView(content)) return content.byteLength;
+  return String(content).length;
+}
+
+function toBase64(content) {
+  const bytes = content instanceof ArrayBuffer ? new Uint8Array(content) : new Uint8Array(content.buffer || content);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function textToHtml(text) {
+  return escapeHtml(text || "")
+    .replace(/\b((?:https?:\/\/|mailto:)[^\s<>"']+)/gi, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\r?\n/g, "<br>");
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
