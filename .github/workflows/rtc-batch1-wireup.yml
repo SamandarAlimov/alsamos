@@ -1,0 +1,72 @@
+name: RTC Batch 1 wire-up
+
+on:
+  push:
+    branches: [feat/rtc-batch1-canonical]
+
+permissions:
+  contents: write
+
+jobs:
+  wire-up:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/rtc-batch1-canonical
+
+      - name: Patch gateway wiring and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('services/alsamos-gateway/main.go')
+          s = p.read_text()
+          if 'RTC_BATCH1_WIRED' in s:
+              raise SystemExit(0)
+
+          old = '\tmaxUploadBytes  int64\n'
+          new = old + '\tlivekitURL      string\n\tlivekitAPIKey   string\n\tlivekitAPISecret string\n\t// RTC_BATCH1_WIRED\n'
+          if old not in s:
+              raise SystemExit('app struct anchor not found')
+          s = s.replace(old, new, 1)
+
+          old = '\t\tmaxUploadBytes:  int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,\n'
+          new = old + '\t\tlivekitURL:      strings.TrimRight(os.Getenv("LIVEKIT_URL"), "/"),\n\t\tlivekitAPIKey:   os.Getenv("LIVEKIT_API_KEY"),\n\t\tlivekitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),\n'
+          if old not in s:
+              raise SystemExit('app init anchor not found')
+          s = s.replace(old, new, 1)
+
+          old = '\tmux.HandleFunc("/api/media/sign", a.signPrivateMedia)\n'
+          new = old + '\ta.registerRTCRoutes(mux)\n'
+          if old not in s:
+              raise SystemExit('mux anchor not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('services/alsamos-gateway/rtc.go')
+          s = p.read_text().replace('\n\tlksdk "github.com/livekit/server-sdk-go/v2"', '')
+          p.write_text(s)
+          PY
+
+          cd services/alsamos-gateway
+          go mod edit -require=github.com/livekit/server-sdk-go/v2@v2.16.7
+          go mod tidy
+          gofmt -w main.go rtc.go
+          go test ./...
+
+      - name: Commit gateway wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add services/alsamos-gateway/main.go services/alsamos-gateway/rtc.go services/alsamos-gateway/go.mod services/alsamos-gateway/go.sum
+          git commit -m 'Wire canonical RTC API into alsamos-gateway' || exit 0
+          git push origin HEAD:feat/rtc-batch1-canonical
