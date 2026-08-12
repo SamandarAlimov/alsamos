@@ -36,25 +36,29 @@ type ctxKey string
 const claimsKey ctxKey = "claims"
 
 type app struct {
-	log             *slog.Logger
-	issuers         []*issuer
-	routes          map[string]*url.URL
-	limiter         *redisLimiter
-	requests        *prometheus.CounterVec
-	latency         *prometheus.HistogramVec
-	limitEach       int
-	resendKey       string
-	resendFrom      string
-	supabaseURL     string
-	supabaseAnonKey string
-	inboundSecret   string
-	minioAccessKey  string
-	minioSecretKey  string
-	minioRegion     string
-	mediaBucket     string
-	mediaEndpoint   string
-	mediaBaseURL    string
-	maxUploadBytes  int64
+	log              *slog.Logger
+	issuers          []*issuer
+	routes           map[string]*url.URL
+	limiter          *redisLimiter
+	requests         *prometheus.CounterVec
+	latency          *prometheus.HistogramVec
+	limitEach        int
+	resendKey        string
+	resendFrom       string
+	supabaseURL      string
+	supabaseAnonKey  string
+	inboundSecret    string
+	minioAccessKey   string
+	minioSecretKey   string
+	minioRegion      string
+	mediaBucket      string
+	mediaEndpoint    string
+	mediaBaseURL     string
+	maxUploadBytes   int64
+	livekitURL       string
+	livekitAPIKey    string
+	livekitAPISecret string
+	// RTC_BATCH1_WIRED
 }
 
 type issuer struct {
@@ -84,20 +88,23 @@ func main() {
 			"/api/accounts/": mustURL(env("ACCOUNTS_URL", "http://accounts-web.apps.svc.cluster.local")),
 			"/ai/":           mustURL(env("AI_URL", "http://ai-gateway.apps.svc.cluster.local:8000")),
 		},
-		limiter:         newRedisLimiter(env("REDIS_ADDR", "redis.data.svc.cluster.local:6379"), env("REDIS_PASSWORD", "")),
-		limitEach:       envInt("RATE_LIMIT_PER_MINUTE", 100),
-		resendKey:       os.Getenv("RESEND_API_KEY"),
-		resendFrom:      env("RESEND_FROM", "Alsamos <no-reply@alsamos.com>"),
-		supabaseURL:     strings.TrimRight(env("SUPABASE_URL", "https://mbhjganbihamoiqmankv.supabase.co"), "/"),
-		supabaseAnonKey: os.Getenv("SUPABASE_PUBLISHABLE_KEY"),
-		inboundSecret:   os.Getenv("INBOUND_SHARED_SECRET"),
-		minioAccessKey:  os.Getenv("MINIO_ACCESS_KEY"),
-		minioSecretKey:  os.Getenv("MINIO_SECRET_KEY"),
-		minioRegion:     env("MINIO_REGION", "us-east-1"),
-		mediaBucket:     env("MEDIA_BUCKET", "media"),
-		mediaEndpoint:   strings.TrimRight(env("MEDIA_ENDPOINT", "https://media.alsamos.com"), "/"),
-		mediaBaseURL:    strings.TrimRight(env("MEDIA_BASE_URL", "https://media.alsamos.com/media"), "/"),
-		maxUploadBytes:  int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,
+		limiter:          newRedisLimiter(env("REDIS_ADDR", "redis.data.svc.cluster.local:6379"), env("REDIS_PASSWORD", "")),
+		limitEach:        envInt("RATE_LIMIT_PER_MINUTE", 100),
+		resendKey:        os.Getenv("RESEND_API_KEY"),
+		resendFrom:       env("RESEND_FROM", "Alsamos <no-reply@alsamos.com>"),
+		supabaseURL:      strings.TrimRight(env("SUPABASE_URL", "https://mbhjganbihamoiqmankv.supabase.co"), "/"),
+		supabaseAnonKey:  os.Getenv("SUPABASE_PUBLISHABLE_KEY"),
+		inboundSecret:    os.Getenv("INBOUND_SHARED_SECRET"),
+		minioAccessKey:   os.Getenv("MINIO_ACCESS_KEY"),
+		minioSecretKey:   os.Getenv("MINIO_SECRET_KEY"),
+		minioRegion:      env("MINIO_REGION", "us-east-1"),
+		mediaBucket:      env("MEDIA_BUCKET", "media"),
+		mediaEndpoint:    strings.TrimRight(env("MEDIA_ENDPOINT", "https://media.alsamos.com"), "/"),
+		mediaBaseURL:     strings.TrimRight(env("MEDIA_BASE_URL", "https://media.alsamos.com/media"), "/"),
+		maxUploadBytes:   int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,
+		livekitURL:       strings.TrimRight(os.Getenv("LIVEKIT_URL"), "/"),
+		livekitAPIKey:    os.Getenv("LIVEKIT_API_KEY"),
+		livekitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "alsamos_gateway_requests_total",
 			Help: "Total gateway requests.",
@@ -124,6 +131,7 @@ func main() {
 	mux.HandleFunc("/api/mail/inbound", a.receiveInboundMail)
 	mux.HandleFunc("/api/media/presign", a.presignMediaUpload)
 	mux.HandleFunc("/api/media/sign", a.signPrivateMedia)
+	a.registerRTCRoutes(mux)
 	mux.HandleFunc("/", a.gateway)
 
 	srv := &http.Server{Addr: ":8080", Handler: a.observe(a.cors(mux)), ReadHeaderTimeout: 10 * time.Second}

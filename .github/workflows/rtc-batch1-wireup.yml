@@ -1,0 +1,33 @@
+name: RTC Batch 1 build
+
+on:
+  push:
+    branches: [feat/rtc-batch1-canonical]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/alsamos-gateway/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - '.github/workflows/rtc-batch1-wireup.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/alsamos-gateway/go.mod
+          cache-dependency-path: services/alsamos-gateway/go.sum
+
+      - name: Build gateway
+        working-directory: services/alsamos-gateway
+        run: go test ./...
