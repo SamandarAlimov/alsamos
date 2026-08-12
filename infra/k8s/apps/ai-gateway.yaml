@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-gateway-secret
+  namespace: apps
+type: Opaque
+stringData:
+  AI_API_KEY: REPLACE_WITH_INTERNAL_AI_API_KEY
+  OPENROUTER_API_KEY: REPLACE_WITH_OPENROUTER_KEY_OR_LEAVE_EMPTY_FOR_POLLINATIONS_ONLY
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-gateway
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-gateway
+  template:
+    metadata:
+      labels:
+        app: ai-gateway
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/samandaralimov/alsamos-ai-gateway:PLACEHOLDER_SHA
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: ai-gateway-secret
+          env:
+            - name: APP_PUBLIC_URL
+              value: https://alsamos.com
+            - name: SUPABASE_JWKS_URL
+              value: https://mbhjganbihamoiqmankv.supabase.co/auth/v1/.well-known/jwks.json
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-gateway
+  namespace: apps
+spec:
+  selector:
+    app: ai-gateway
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-gateway
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - ai.alsamos.com
+      secretName: ai-alsamos-com-tls
+  rules:
+    - host: ai.alsamos.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-gateway
+                port:
+                  number: 8000

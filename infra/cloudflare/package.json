@@ -1,0 +1,14 @@
+{
+  "name": "alsamos-cloudflare-workers",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:inbound": "esbuild inbound-email-worker.js --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/inbound-email-worker.js"
+  },
+  "dependencies": {
+    "postal-mime": "^2.4.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.6"
+  }
+}
