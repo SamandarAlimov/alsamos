@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/livekit/protocol/auth"
 )
 
@@ -204,7 +203,7 @@ func (a *app) rtcLiveKitToken(w http.ResponseWriter, r *http.Request, callID str
 		if len(invites)==0 { writeRTCError(w,http.StatusForbidden,"FORBIDDEN","user is not an eligible call participant"); return }
 	}
 	at := auth.NewAccessToken(a.livekitAPIKey,a.livekitAPISecret)
-	at.SetIdentity(claimsFromContext(r.Context()).Sub).SetValidFor(10*time.Minute).SetVideoGrant(&auth.VideoGrant{RoomJoin:true,Room:room,CanPublish:true,CanSubscribe:true})
+	at.SetIdentity(claimsFromContext(r.Context()).Sub).SetValidFor(10*time.Minute).SetVideoGrant(&auth.VideoGrant{RoomJoin:true,Room:room,CanPublish:true,CanSubscribe:boolPtr(true)})
 	token, err := at.ToJWT(); if err != nil { writeRTCError(w,http.StatusInternalServerError,"TOKEN_ERROR","failed to mint LiveKit token"); return }
 	writeJSON(w,http.StatusOK,map[string]any{"call_id":callID,"room_name":room,"url":a.livekitURL,"token":token,"expires_at":time.Now().Add(10*time.Minute).UTC()})
 }
@@ -242,3 +241,5 @@ func writeSupabaseRTCError(w http.ResponseWriter, err error) {
 }
 
 func writeRTCError(w http.ResponseWriter,status int,code,message string){ writeJSON(w,status,map[string]any{"error":rtcError{Code:code,Message:message}}) }
+
+func boolPtr(v bool) *bool { return &v }
