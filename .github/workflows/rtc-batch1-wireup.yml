@@ -31,13 +31,11 @@ jobs:
               if old not in s:
                   raise SystemExit('app struct anchor not found')
               s = s.replace(old, new, 1)
-
               old = '\t\tmaxUploadBytes:  int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,\n'
               new = old + '\t\tlivekitURL:      strings.TrimRight(os.Getenv("LIVEKIT_URL"), "/"),\n\t\tlivekitAPIKey:   os.Getenv("LIVEKIT_API_KEY"),\n\t\tlivekitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),\n'
               if old not in s:
                   raise SystemExit('app init anchor not found')
               s = s.replace(old, new, 1)
-
               old = '\tmux.HandleFunc("/api/media/sign", a.signPrivateMedia)\n'
               new = old + '\ta.registerRTCRoutes(mux)\n'
               if old not in s:
@@ -59,7 +57,13 @@ jobs:
           PY
 
           cd services/alsamos-gateway
-          grep -nE 'CanSubscribe|boolPtr' rtc.go
+          echo '--- RTC source diagnostics ---'
+          wc -l rtc.go
+          grep -R -n -E 'CanSubscribe\s*:\s*true|CanSubscribe|boolPtr' . --include='*.go' || true
+          echo '--- rtc.go lines 300-315 ---'
+          sed -n '300,315p' rtc.go || true
+          echo '--- module files ---'
+          git status --short
           go mod edit -require=github.com/livekit/server-sdk-go/v2@v2.16.7
           go mod tidy
           gofmt -w main.go rtc.go
