@@ -1,82 +1,33 @@
-name: RTC Batch 1 wire-up
+name: RTC Batch 1 build
 
 on:
   push:
     branches: [feat/rtc-batch1-canonical]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/alsamos-gateway/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - '.github/workflows/rtc-batch1-wireup.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  wire-up:
-    if: github.actor != 'github-actions[bot]'
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          ref: feat/rtc-batch1-canonical
+          fetch-depth: 1
 
-      - name: Patch gateway wiring and dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('services/alsamos-gateway/main.go')
-          s = p.read_text()
-          if 'RTC_BATCH1_WIRED' not in s:
-              old = '\tmaxUploadBytes  int64\n'
-              new = old + '\tlivekitURL      string\n\tlivekitAPIKey   string\n\tlivekitAPISecret string\n\t// RTC_BATCH1_WIRED\n'
-              if old not in s:
-                  raise SystemExit('app struct anchor not found')
-              s = s.replace(old, new, 1)
-              old = '\t\tmaxUploadBytes:  int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,\n'
-              new = old + '\t\tlivekitURL:      strings.TrimRight(os.Getenv("LIVEKIT_URL"), "/"),\n\t\tlivekitAPIKey:   os.Getenv("LIVEKIT_API_KEY"),\n\t\tlivekitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),\n'
-              if old not in s:
-                  raise SystemExit('app init anchor not found')
-              s = s.replace(old, new, 1)
-              old = '\tmux.HandleFunc("/api/media/sign", a.signPrivateMedia)\n'
-              new = old + '\ta.registerRTCRoutes(mux)\n'
-              if old not in s:
-                  raise SystemExit('mux anchor not found')
-              s = s.replace(old, new, 1)
-              p.write_text(s)
-          PY
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/alsamos-gateway/go.mod
+          cache-dependency-path: services/alsamos-gateway/go.sum
 
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p = Path('services/alsamos-gateway/rtc.go')
-          s = p.read_text()
-          s = s.replace('\n\tlksdk "github.com/livekit/server-sdk-go/v2"', '')
-          s = re.sub(r'CanSubscribe\s*:\s*true', 'CanSubscribe: boolPtr(true)', s)
-          if 'func boolPtr(' not in s:
-              s += '\nfunc boolPtr(v bool) *bool { return &v }\n'
-          p.write_text(s)
-          PY
-
-          cd services/alsamos-gateway
-          go mod edit -require=github.com/livekit/server-sdk-go/v2@v2.16.7
-          go mod tidy
-          gofmt -w main.go rtc.go
-          echo '--- Go environment ---'
-          go version
-          go env GOMOD GOWORK GOFLAGS
-          echo '--- Go package metadata ---'
-          go list -json . | python3 -c 'import json,sys; d=json.load(sys.stdin); print("Dir=",d.get("Dir")); print("ImportPath=",d.get("ImportPath")); print("GoFiles=",d.get("GoFiles")); print("IgnoredGoFiles=",d.get("IgnoredGoFiles")); print("Imports=",d.get("Imports"))'
-          echo '--- RTC source ---'
-          wc -l rtc.go
-          grep -nE 'CanSubscribe|boolPtr' rtc.go
-          echo '--- Build ---'
-          go test .
-
-      - name: Commit gateway wiring
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add services/alsamos-gateway/main.go services/alsamos-gateway/rtc.go services/alsamos-gateway/go.mod services/alsamos-gateway/go.sum
-          git commit -m 'Wire canonical RTC API into alsamos-gateway' || exit 0
-          git push origin HEAD:feat/rtc-batch1-canonical
+      - name: Build gateway
+        working-directory: services/alsamos-gateway
+        run: go test ./...
