@@ -57,17 +57,19 @@ jobs:
           PY
 
           cd services/alsamos-gateway
-          echo '--- RTC source diagnostics ---'
-          wc -l rtc.go
-          grep -R -n -E 'CanSubscribe\s*:\s*true|CanSubscribe|boolPtr' . --include='*.go' || true
-          echo '--- rtc.go lines 300-315 ---'
-          sed -n '300,315p' rtc.go || true
-          echo '--- module files ---'
-          git status --short
           go mod edit -require=github.com/livekit/server-sdk-go/v2@v2.16.7
           go mod tidy
           gofmt -w main.go rtc.go
-          go test ./...
+          echo '--- Go environment ---'
+          go version
+          go env GOMOD GOWORK GOFLAGS
+          echo '--- Go package metadata ---'
+          go list -json . | python3 -c 'import json,sys; d=json.load(sys.stdin); print("Dir=",d.get("Dir")); print("ImportPath=",d.get("ImportPath")); print("GoFiles=",d.get("GoFiles")); print("IgnoredGoFiles=",d.get("IgnoredGoFiles")); print("Imports=",d.get("Imports"))'
+          echo '--- RTC source ---'
+          wc -l rtc.go
+          grep -nE 'CanSubscribe|boolPtr' rtc.go
+          echo '--- Build ---'
+          go test .
 
       - name: Commit gateway wiring
         shell: bash
