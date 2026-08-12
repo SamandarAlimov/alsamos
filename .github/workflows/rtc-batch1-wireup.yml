@@ -25,40 +25,41 @@ jobs:
           from pathlib import Path
           p = Path('services/alsamos-gateway/main.go')
           s = p.read_text()
-          if 'RTC_BATCH1_WIRED' in s:
-              raise SystemExit(0)
+          if 'RTC_BATCH1_WIRED' not in s:
+              old = '\tmaxUploadBytes  int64\n'
+              new = old + '\tlivekitURL      string\n\tlivekitAPIKey   string\n\tlivekitAPISecret string\n\t// RTC_BATCH1_WIRED\n'
+              if old not in s:
+                  raise SystemExit('app struct anchor not found')
+              s = s.replace(old, new, 1)
 
-          old = '\tmaxUploadBytes  int64\n'
-          new = old + '\tlivekitURL      string\n\tlivekitAPIKey   string\n\tlivekitAPISecret string\n\t// RTC_BATCH1_WIRED\n'
-          if old not in s:
-              raise SystemExit('app struct anchor not found')
-          s = s.replace(old, new, 1)
+              old = '\t\tmaxUploadBytes:  int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,\n'
+              new = old + '\t\tlivekitURL:      strings.TrimRight(os.Getenv("LIVEKIT_URL"), "/"),\n\t\tlivekitAPIKey:   os.Getenv("LIVEKIT_API_KEY"),\n\t\tlivekitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),\n'
+              if old not in s:
+                  raise SystemExit('app init anchor not found')
+              s = s.replace(old, new, 1)
 
-          old = '\t\tmaxUploadBytes:  int64(envInt("MEDIA_MAX_UPLOAD_MB", 50)) * 1024 * 1024,\n'
-          new = old + '\t\tlivekitURL:      strings.TrimRight(os.Getenv("LIVEKIT_URL"), "/"),\n\t\tlivekitAPIKey:   os.Getenv("LIVEKIT_API_KEY"),\n\t\tlivekitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),\n'
-          if old not in s:
-              raise SystemExit('app init anchor not found')
-          s = s.replace(old, new, 1)
-
-          old = '\tmux.HandleFunc("/api/media/sign", a.signPrivateMedia)\n'
-          new = old + '\ta.registerRTCRoutes(mux)\n'
-          if old not in s:
-              raise SystemExit('mux anchor not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s)
+              old = '\tmux.HandleFunc("/api/media/sign", a.signPrivateMedia)\n'
+              new = old + '\ta.registerRTCRoutes(mux)\n'
+              if old not in s:
+                  raise SystemExit('mux anchor not found')
+              s = s.replace(old, new, 1)
+              p.write_text(s)
           PY
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('services/alsamos-gateway/rtc.go')
-          s = p.read_text().replace('\n\tlksdk "github.com/livekit/server-sdk-go/v2"', '')
-          s = s.replace('CanPublish:true,CanSubscribe:true', 'CanPublish:true,CanSubscribe:boolPtr(true)')
+          s = p.read_text()
+          s = s.replace('\n\tlksdk "github.com/livekit/server-sdk-go/v2"', '')
+          s = re.sub(r'CanSubscribe\s*:\s*true', 'CanSubscribe: boolPtr(true)', s)
           if 'func boolPtr(' not in s:
               s += '\nfunc boolPtr(v bool) *bool { return &v }\n'
           p.write_text(s)
           PY
 
           cd services/alsamos-gateway
+          grep -nE 'CanSubscribe|boolPtr' rtc.go
           go mod edit -require=github.com/livekit/server-sdk-go/v2@v2.16.7
           go mod tidy
           gofmt -w main.go rtc.go
