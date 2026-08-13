@@ -7,13 +7,5 @@ export interface AIArtifact { id: string; conversationId?: string; projectId?: s
 export interface AIConnector { id: string; ownerId: string; kind: AIConnectorKind; displayName: string; connected: boolean; accountLabel?: string; updatedAt: string; }
 export interface AISkill { id: string; name: string; description: string; enabled: boolean; scope: 'global' | 'chat' | 'project'; }
 export interface AIAgentTask { id: string; conversationId: string; title: string; status: AIAgentTaskStatus; steps: Array<{ id: string; label: string; status: AIAgentTaskStatus }>; requiresConfirmation: boolean; createdAt: string; updatedAt: string; }
-export const AI_WORKSPACE_API = { projects: '/api/v1/ai/projects', artifacts: '/api/v1/ai/artifacts', conversationsSearch: '/api/v1/ai/conversations/search', connectors: '/api/v1/ai/connectors', skills: '/api/v1/ai/skills', tasks: '/api/v1/ai/tasks', intent: '/api/v1/ai/intent', generate: '/api/v1/ai/generate', stream: '/api/v1/ai/stream' } as const;
-export const AI_WORKSPACE_RULES = [
-  'Entering /ai always creates a fresh chat session.',
-  'Image/video/document generation is intent-routed; Chat and Imagine are not separate modes.',
-  'UI never calls model/provider SDKs directly; provider selection belongs behind the AI gateway.',
-  'Projects, artifacts, connectors and skills are server-backed domain entities.',
-  'External/destructive actions require explicit confirmation before execution.',
-  'Streaming is abortable and failures render inline with retry.',
-  'Durable state is server-authoritative; local state is ephemeral UI/cache state.',
-] as const;
+export const AI_WORKSPACE_API = { projects: '/ai/v1/projects', artifacts: '/ai/v1/artifacts', conversationsSearch: '/ai/v1/conversations/search', connectors: '/ai/v1/connectors', skills: '/ai/v1/skills', tasks: '/ai/v1/tasks', intent: '/ai/v1/intent', generate: '/ai/v1/generate', stream: '/ai/v1/stream' } as const;
+export const AI_WORKSPACE_RULES = ['Entering /ai always creates a fresh chat session.','Image/video/document generation is intent-routed; Chat and Imagine are not separate modes.','UI never calls model/provider SDKs directly; provider selection belongs behind the AI gateway.','Projects, artifacts, connectors and skills are server-backed domain entities.','External/destructive actions require explicit confirmation before execution.','Streaming is abortable and failures render inline with retry.','Durable state is server-authoritative; local state is ephemeral UI/cache state.'] as const;
