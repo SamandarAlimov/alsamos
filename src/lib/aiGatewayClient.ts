@@ -4,6 +4,7 @@ import { detectIntent } from './aiIntent';
 export type AIRoute = 'chat' | 'image' | 'video' | 'document' | 'code' | 'spreadsheet' | 'slides' | 'diagram';
 export interface AIIntentRequest {
   message: string;
+  userId?: string;
   conversationId?: string;
   projectId?: string;
   projectInstructions?: string;
@@ -114,7 +115,7 @@ const processSSEFrame = (frame: string, onEvent: (event: AIStreamEvent) => void)
  * deployed. The browser never receives provider credentials; it calls the
  * existing Supabase Edge Function with the public Supabase key.
  */
-async function legacyDetectIntent(input: AIIntentRequest, signal?: AbortSignal): Promise<AIIntentResponse> {
+async function legacyDetectIntent(input: AIIntentRequest, _signal?: AbortSignal): Promise<AIIntentResponse> {
   const detected = detectIntent(input.message);
   return {
     route: detected.intent === 'image' ? 'image' : 'chat',
@@ -166,12 +167,15 @@ async function legacyStream(
 
     try {
       while (true) {
-        const { value, done } = await Promise.race([
+        let idleTimer: number | undefined;
+        const read = Promise.race([
           reader.read(),
           new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
-            window.setTimeout(() => reject(new AIGatewayTimeoutError('AI stream 90 soniya davomida yangi ma’lumot yubormadi.')), STREAM_IDLE_TIMEOUT_MS);
+            idleTimer = window.setTimeout(() => reject(new AIGatewayTimeoutError('AI stream 90 soniya davomida yangi ma’lumot yubormadi.')), STREAM_IDLE_TIMEOUT_MS);
           }),
         ]);
+        const { value, done } = await read;
+        if (idleTimer !== undefined) window.clearTimeout(idleTimer);
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const frames = buffer.split(/\r?\n\r?\n/);
