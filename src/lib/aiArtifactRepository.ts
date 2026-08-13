@@ -54,7 +54,7 @@ export const aiArtifactRepository = {
     const payload = rowFromArtifact(ownerId, artifact, conversationId, projectId);
     const { data: existing } = await supabase
       .from('ai_artifacts')
-      .select('id, version')
+      .select('id, version, content')
       .eq('owner_id', ownerId)
       .eq('conversation_id', conversationId ?? '')
       .eq('message_id', artifact.messageId)
@@ -63,6 +63,8 @@ export const aiArtifactRepository = {
       .maybeSingle();
 
     if (existing?.id) {
+      // Replaying the same stream event must not create a new version.
+      if (existing.content === payload.content) return existing.id;
       const { error } = await supabase
         .from('ai_artifacts')
         .update({ content: payload.content, language: payload.language, metadata: payload.metadata, version: Number(existing.version) + 1 })
