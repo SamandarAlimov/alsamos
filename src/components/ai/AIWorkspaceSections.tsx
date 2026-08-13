@@ -1,6 +1,7 @@
 import { ChevronRight, FolderKanban, Package, PlugZap, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { AIWorkspaceLauncher } from './AIWorkspaceLauncher';
 
 type WorkspaceKey = 'projects' | 'artifacts' | 'connectors' | 'skills';
 
@@ -11,7 +12,7 @@ export function AIWorkspaceSections() {
     { key: 'connectors', label: 'Connectors', icon: PlugZap, empty: 'Google, GitHub, Notion va Alsamos modullari' },
     { key: 'skills', label: 'Plugins / Skills', icon: Wrench, empty: 'AI imkoniyatlarini kengaytiruvchi skilllar' },
   ];
-  return <div className="space-y-0.5">{sections.map(({ key, label, icon: Icon, empty }) => <WorkspaceSection key={key} workspaceKey={key} storageKey={`alsamos.ai.section.${key}`} icon={<Icon className="h-3.5 w-3.5 text-muted-foreground" />} label={label} empty={empty} />)}</div>;
+  return <><div className="space-y-0.5">{sections.map(({ key, label, icon: Icon, empty }) => <WorkspaceSection key={key} workspaceKey={key} storageKey={`alsamos.ai.section.${key}`} icon={<Icon className="h-3.5 w-3.5 text-muted-foreground" />} label={label} empty={empty} />)}</div><AIWorkspaceLauncher /></>;
 }
 
 function WorkspaceSection({ workspaceKey, storageKey, icon, label, empty }: { workspaceKey: WorkspaceKey; storageKey: string; icon: React.ReactNode; label: string; empty: string }) {
