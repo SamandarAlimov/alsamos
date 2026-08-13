@@ -5,10 +5,18 @@ on:
   push:
     branches: [main]
     paths:
+      - "src/**"
+      - "public/**"
       - "alsamos-web/**"
       - "apps/**"
       - "infra/k8s/apps/**"
       - "services/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.*"
+      - "vercel.json"
+      - "Dockerfile"
+      - ".dockerignore"
       - ".github/workflows/build-and-push.yml"
 
 permissions:
