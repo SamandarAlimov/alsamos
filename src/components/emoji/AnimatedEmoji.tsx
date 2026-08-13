@@ -1,58 +1,86 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { animatedEmojiUrls } from '@/lib/animatedEmoji';
 import { alsamosStaticEmojiUrl } from '@/lib/alsamosStaticEmoji';
+import { useAlsamosEmojiPlayback } from '@/lib/alsamosEmojiPlayback';
 
 interface AnimatedEmojiProps {
   emoji: string;
   /** Rendered pixel size. */
   size?: number;
   className?: string;
-  /** Only animate on hover (grid performance). */
+  /** Animate the Alsamos pilot asset when hovered. */
   playOnHover?: boolean;
+  /** Play one Alsamos animation cycle when the asset is clicked. */
+  playOnClick?: boolean;
   title?: string;
 }
 
 /**
- * Renders an emoji using the Alsamos original static artwork when one exists.
+ * Unified emoji renderer.
  *
- * The static artwork is the canonical idle state. Non-pilot emoji retain the
- * existing animated asset fallback until their original Alsamos artwork is
- * produced. This keeps the rollout incremental without replacing the whole
- * catalog with platform-native glyphs.
+ * Alsamos-owned artwork is always preferred. Its static SVG is the canonical
+ * idle state; playback is layered on top without replacing the source asset.
+ * Non-owned emoji retain the existing animated fallback until their original
+ * Alsamos artwork is produced.
  */
 export function AnimatedEmoji({
   emoji,
   size = 24,
   className,
   playOnHover = false,
+  playOnClick = false,
   title,
 }: AnimatedEmojiProps) {
   const alsamosStaticUrl = alsamosStaticEmojiUrl(emoji);
   const candidates = useMemo(() => animatedEmojiUrls(emoji), [emoji]);
   const [index, setIndex] = useState(0);
   const [failed, setFailed] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const playback = useAlsamosEmojiPlayback(emoji);
 
   useEffect(() => {
     setIndex(0);
     setFailed(false);
   }, [emoji]);
 
+  useEffect(() => {
+    if (!alsamosStaticUrl || playback.state !== 'playing' || !imageRef.current) return;
+
+    const animation = imageRef.current.animate(
+      [
+        { transform: 'scale(1) rotate(0deg)', offset: 0 },
+        { transform: 'scale(1.12) rotate(-5deg)', offset: 0.28 },
+        { transform: 'scale(0.94) rotate(4deg)', offset: 0.55 },
+        { transform: 'scale(1.05) rotate(-2deg)', offset: 0.78 },
+        { transform: 'scale(1) rotate(0deg)', offset: 1 },
+      ],
+      { duration: 900, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'both' },
+    );
+
+    return () => animation.cancel();
+  }, [alsamosStaticUrl, playback.state]);
+
   if (alsamosStaticUrl) {
+    const play = () => playback.play();
+
     return (
       <img
+        ref={imageRef}
         src={alsamosStaticUrl}
         alt={emoji}
         title={title}
         draggable={false}
         width={size}
         height={size}
+        onClick={playOnClick ? play : undefined}
+        onMouseEnter={playOnHover ? play : undefined}
         className={cn(
           'inline-block object-contain select-none',
-          playOnHover && 'transition-transform duration-150 hover:scale-110',
+          (playOnHover || playOnClick) && 'cursor-pointer',
           className,
         )}
-        style={{ width: size, height: size }}
+        style={{ width: size, height: size, transformOrigin: 'center center' }}
       />
     );
   }
@@ -82,11 +110,7 @@ export function AnimatedEmoji({
         if (index < candidates.length - 1) setIndex(index + 1);
         else setFailed(true);
       }}
-      className={cn(
-        'inline-block object-contain select-none',
-        playOnHover && 'transition-transform duration-150 hover:scale-110',
-        className,
-      )}
+      className={cn('inline-block object-contain select-none', className)}
       style={{ width: size, height: size }}
     />
   );
