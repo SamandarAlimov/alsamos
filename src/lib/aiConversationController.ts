@@ -3,6 +3,7 @@ import { aiGatewayClient, type AIStreamEvent, type AIGenerateRequest, type AIRou
 import { detectIntent } from './aiIntent';
 import { aiMemoryRepository } from './aiMemoryRepository';
 import { aiWorkspaceRepository } from './aiWorkspaceRepository';
+import { aiSkillRepository } from './aiSkillRepository';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface AIConversationMessage { id: string; role: 'user' | 'assistant'; content: string; status?: 'streaming' | 'completed' | 'error'; route?: AIRoute; artifactId?: string; taskId?: string; error?: { message: string; retryable: boolean } }
@@ -60,6 +61,7 @@ export function useAIConversationController() {
     let effectiveProjectId = options.projectId ?? selectedProjectRef.current ?? undefined;
     let projectInstructions = selectedProjectInstructionsRef.current;
     let memoryContext = options.memoryContext;
+    let skillIds = options.skillIds;
 
     try {
       if (options.conversationId && options.projectId === undefined) {
@@ -73,8 +75,10 @@ export function useAIConversationController() {
       if (!memoryContext) {
         memoryContext = await aiMemoryRepository.enabledContext(30);
       }
+      const persistedSkills = await aiSkillRepository.enabledSkillIds('global');
+      skillIds = [...new Set([...(skillIds ?? []), ...persistedSkills])];
     } catch {
-      // Context retrieval must never make the core chat unavailable.
+      // Optional context must never make the core chat unavailable.
     }
 
     if (controller.signal.aborted) return;
@@ -87,7 +91,7 @@ export function useAIConversationController() {
         setState((s) => ({ ...s, busy: false, activeRoute: intent.route, messages: s.messages.map((m) => m.id === assistantId ? { ...m, content: intent.clarification!, status: 'completed', route: intent.route } : m) }));
         return;
       }
-      const request: AIGenerateRequest = { ...base, route: intent.route, skillIds: options.skillIds };
+      const request: AIGenerateRequest = { ...base, route: intent.route, skillIds };
       await aiGatewayClient.stream(request, (event: AIStreamEvent) => {
         if (event.type === 'message.delta') setState((s) => ({ ...s, messages: s.messages.map((m) => m.id === assistantId ? { ...m, content: m.content + (event.delta ?? '') } : m) }));
         else if (event.type === 'message.completed') setState((s) => ({ ...s, busy: false, messages: s.messages.map((m) => m.id === assistantId ? { ...m, id: event.messageId ?? m.id, status: 'completed', route: intent.route } : m) }));
