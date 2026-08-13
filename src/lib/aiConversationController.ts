@@ -15,9 +15,14 @@ const idleState = (): AIConversationControllerState => ({ messages: [], busy: fa
 
 export function useAIConversationController() {
   const [state, setState] = useState<AIConversationControllerState>(idleState);
+  const messagesRef = useRef<AIConversationMessage[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const selectedProjectRef = useRef<string | null>(null);
   const selectedProjectInstructionsRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    messagesRef.current = state.messages;
+  }, [state.messages]);
 
   useEffect(() => {
     const onProjectSelected = (event: Event) => {
@@ -40,12 +45,14 @@ export function useAIConversationController() {
     abortRef.current = null;
     selectedProjectRef.current = null;
     selectedProjectInstructionsRef.current = undefined;
+    messagesRef.current = [];
     setState(idleState());
   }, []);
 
   const hydrate = useCallback((messages: AIConversationMessage[]) => {
     abortRef.current?.abort();
     abortRef.current = null;
+    messagesRef.current = messages;
     setState({ messages, busy: false, error: null, activeRoute: messages.at(-1)?.route ?? null, artifactIds: messages.flatMap((m) => m.artifactId ? [m.artifactId] : []), taskIds: messages.flatMap((m) => m.taskId ? [m.taskId] : []) });
   }, []);
 
@@ -85,7 +92,28 @@ export function useAIConversationController() {
 
     if (controller.signal.aborted) return;
 
-    const base = { message: detected.prompt, conversationId: options.conversationId, projectId: effectiveProjectId, projectInstructions, memoryContext, modelMode: options.modelMode, hintedRoute, attachments: options.attachments };
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+    const previousMessages = messagesRef.current
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.status !== 'error')
+      .map((m) => ({ role: m.role, content: m.content }))
+      .filter((m) => m.content.trim().length > 0);
+
+    const base: AIGenerateRequest = {
+      message: detected.prompt,
+      userId,
+      conversationId: options.conversationId,
+      projectId: effectiveProjectId,
+      projectInstructions,
+      memoryContext,
+      modelMode: options.modelMode,
+      hintedRoute,
+      attachments: options.attachments,
+      history: previousMessages,
+      route: hintedRoute,
+      skillIds,
+    };
+
     setState((s) => ({ ...s, busy: true, error: null, activeRoute: hintedRoute, messages: [...s.messages, { id: makeId('user'), role: 'user', content: message, status: 'completed' }, { id: assistantId, role: 'assistant', content: '', status: 'streaming', route: hintedRoute }] }));
     try {
       const intent = await aiGatewayClient.detectIntent(base, controller.signal);
@@ -93,7 +121,7 @@ export function useAIConversationController() {
         setState((s) => ({ ...s, busy: false, activeRoute: intent.route, messages: s.messages.map((m) => m.id === assistantId ? { ...m, content: intent.clarification!, status: 'completed', route: intent.route } : m) }));
         return;
       }
-      const request: AIGenerateRequest = { ...base, route: intent.route, skillIds };
+      const request: AIGenerateRequest = { ...base, route: intent.route };
       await aiGatewayClient.stream(request, (event: AIStreamEvent) => {
         if (event.type === 'message.delta') setState((s) => ({ ...s, messages: s.messages.map((m) => m.id === assistantId ? { ...m, content: m.content + (event.delta ?? '') } : m) }));
         else if (event.type === 'message.completed') setState((s) => ({ ...s, busy: false, messages: s.messages.map((m) => m.id === assistantId ? { ...m, id: event.messageId ?? m.id, status: 'completed', route: intent.route } : m) }));
