@@ -12,6 +12,9 @@ const ALSAMOS_STATIC_EMOJI: Record<string, string> = {
   '😍': '/emoji/alsamos/1f60d.svg',
   '😇': '/emoji/alsamos/1f607.svg',
   '🎉': '/emoji/alsamos/1f389.svg',
+  '😊': '/emoji/alsamos/1f60a.svg',
+  '😎': '/emoji/alsamos/1f60e.svg',
+  '😘': '/emoji/alsamos/1f618.svg',
 };
 
 export function alsamosStaticEmojiUrl(emoji: string): string | undefined {
