@@ -26,10 +26,15 @@ export function AnimatedEmoji({ emoji, size = 24, className, playOnHover = false
   const [failed, setFailed] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
 
-  // Resolve the asset once without animation so lifecycle duration is stable.
-  const baseRenderer = resolveAlsamosEmojiRenderer({ emoji, size, animate: false });
+  const baseRenderer = useMemo(
+    () => resolveAlsamosEmojiRenderer({ emoji, size, animate: false }),
+    [emoji, size],
+  );
   const playback = useAlsamosEmojiPlayback(emoji, baseRenderer?.durationMs ?? 900);
-  const renderer = resolveAlsamosEmojiRenderer({ emoji, size, animate: playback.state === 'playing' });
+  const renderer = useMemo(
+    () => resolveAlsamosEmojiRenderer({ emoji, size, animate: playback.state === 'playing' }),
+    [emoji, size, playback.state],
+  );
   const rendererKind = renderer?.renderer;
   const rendererDurationMs = renderer?.durationMs ?? baseRenderer?.durationMs ?? 900;
   const rendererKeyframes = renderer?.keyframes ?? baseRenderer?.keyframes ?? [];
