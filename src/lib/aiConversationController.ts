@@ -3,6 +3,7 @@ import { aiGatewayClient, type AIStreamEvent, type AIGenerateRequest, type AIRou
 import { detectIntent } from './aiIntent';
 import { aiMemoryRepository } from './aiMemoryRepository';
 import { aiWorkspaceRepository } from './aiWorkspaceRepository';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface AIConversationMessage { id: string; role: 'user' | 'assistant'; content: string; status?: 'streaming' | 'completed' | 'error'; route?: AIRoute; artifactId?: string; taskId?: string; error?: { message: string; retryable: boolean } }
 export interface SendAIMessageOptions { conversationId?: string; projectId?: string; modelMode?: AIGenerateRequest['modelMode']; skillIds?: string[]; attachments?: AIGenerateRequest['attachments']; memoryContext?: string[] }
@@ -36,6 +37,8 @@ export function useAIConversationController() {
   const clear = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    selectedProjectRef.current = null;
+    selectedProjectInstructionsRef.current = undefined;
     setState(idleState());
   }, []);
 
@@ -54,11 +57,15 @@ export function useAIConversationController() {
     const assistantId = makeId('assistant');
     const detected = detectIntent(text);
     const hintedRoute: AIRoute = detected.intent === 'image' ? 'image' : 'chat';
-    const effectiveProjectId = options.projectId ?? selectedProjectRef.current ?? undefined;
+    let effectiveProjectId = options.projectId ?? selectedProjectRef.current ?? undefined;
     let projectInstructions = selectedProjectInstructionsRef.current;
     let memoryContext = options.memoryContext;
 
     try {
+      if (options.conversationId && options.projectId === undefined) {
+        const { data: conversation } = await supabase.from('ai_conversations').select('project_id').eq('id', options.conversationId).maybeSingle();
+        effectiveProjectId = conversation?.project_id ?? effectiveProjectId;
+      }
       if (effectiveProjectId && !projectInstructions) {
         const project = await aiWorkspaceRepository.getProject(effectiveProjectId);
         projectInstructions = project?.instructions?.trim() || undefined;
@@ -67,7 +74,7 @@ export function useAIConversationController() {
         memoryContext = await aiMemoryRepository.enabledContext(30);
       }
     } catch {
-      // Memory/project context is an enhancement; generation remains available if context retrieval fails.
+      // Context retrieval must never make the core chat unavailable.
     }
 
     if (controller.signal.aborted) return;
