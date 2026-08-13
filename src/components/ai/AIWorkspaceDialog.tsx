@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { X, FolderKanban, Package, PlugZap, Wrench } from 'lucide-react';
+import { X, FolderKanban, Package, PlugZap, Wrench, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AIProjectsPanel } from './AIProjectsPanel';
 import { AIArtifactsPanel } from './AIArtifactsPanel';
 import { AIConnectorsPanel } from './AIConnectorsPanel';
 import { AISkillsPanel } from './AISkillsPanel';
+import { AIPersonalMemoryPanel } from './AIPersonalMemoryPanel';
 
-type WorkspaceKey = 'projects' | 'artifacts' | 'connectors' | 'skills';
+type WorkspaceKey = 'projects' | 'artifacts' | 'connectors' | 'skills' | 'memory';
 const items = [
   { key: 'projects' as const, label: 'Projects', icon: FolderKanban },
   { key: 'artifacts' as const, label: 'Artifacts', icon: Package },
   { key: 'connectors' as const, label: 'Connectors', icon: PlugZap },
   { key: 'skills' as const, label: 'Plugins / Skills', icon: Wrench },
+  { key: 'memory' as const, label: 'Memory', icon: Brain },
 ];
 
 export function AIWorkspaceDialog({ open, section, onClose }: { open: boolean; section: WorkspaceKey; onClose: () => void }) {
@@ -25,7 +27,7 @@ export function AIWorkspaceDialog({ open, section, onClose }: { open: boolean; s
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/50 px-3 sm:hidden"><span className="text-sm font-semibold">AI Workspace</span><span className="text-xs text-muted-foreground">/ {items.find((x) => x.key === active)?.label}</span><Button size="icon" variant="ghost" className="ml-auto h-8 w-8" onClick={onClose}><X className="h-4 w-4" /></Button></header>
       <aside className="hidden w-56 shrink-0 border-r border-border/50 bg-muted/20 p-3 sm:block"><div className="flex items-center justify-between px-2 pb-3"><span className="text-sm font-semibold">AI Workspace</span><Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}><X className="h-4 w-4" /></Button></div><nav className="space-y-1">{items.map(({ key, label, icon: Icon }) => <button key={key} onClick={() => setActive(key)} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2.5 text-xs ${active === key ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav></aside>
       <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/50 bg-muted/10 p-2 sm:hidden" role="tablist">{items.map(({ key, label, icon: Icon }) => <button key={key} role="tab" aria-selected={active === key} onClick={() => setActive(key)} className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs ${active === key ? 'bg-muted font-medium' : 'text-muted-foreground'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">{active === 'projects' ? <AIProjectsPanel /> : active === 'artifacts' ? <AIArtifactsPanel /> : active === 'connectors' ? <AIConnectorsPanel /> : <AISkillsPanel />}</main>
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">{active === 'projects' ? <AIProjectsPanel /> : active === 'artifacts' ? <AIArtifactsPanel /> : active === 'connectors' ? <AIConnectorsPanel /> : active === 'skills' ? <AISkillsPanel /> : <AIPersonalMemoryPanel />}</main>
     </div>
   </div>;
 }
