@@ -1,7 +1,14 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type AISkillScope = 'global' | 'chat' | 'project';
-export interface AISkillBinding { skillId: string; scope: AISkillScope; contextId: string | null; enabled: boolean; }
+export interface AISkillBinding { skillId: string; chatId: string | null; projectId: string | null; enabled: boolean; }
+
+const fromRow = (row: any): AISkillBinding => ({
+  skillId: row.skill_id,
+  chatId: row.chat_id ?? null,
+  projectId: row.project_id ?? null,
+  enabled: Boolean(row.enabled),
+});
 
 export const aiSkillRepository = {
   async enabledSkillIds(scope: AISkillScope = 'global', contextId?: string): Promise<string[]> {
@@ -23,11 +30,7 @@ export const aiSkillRepository = {
     return [...new Set((data ?? []).map((row: any) => row.skill_id).filter(Boolean))];
   },
 
-  /**
-   * Resolve the effective skill set for one chat.
-   * Global skills are the baseline. Project and chat bindings override them;
-   * an explicit disabled binding therefore disables an inherited skill.
-   */
+  /** Resolve global -> project -> chat skill precedence for one conversation. */
   async effectiveSkillIds(chatId?: string, projectId?: string): Promise<string[]> {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return [];
@@ -38,10 +41,9 @@ export const aiSkillRepository = {
       .eq('owner_id', auth.user.id);
     if (error) throw new Error(error.message || 'AI skill state could not be loaded');
 
-    const rows = (data ?? []) as AISkillBinding[];
+    const rows = (data ?? []).map(fromRow);
     const effective = new Map<string, boolean>();
 
-    // Lowest precedence first.
     for (const row of rows) {
       if (row.chatId == null && row.projectId == null) effective.set(row.skillId, row.enabled);
     }
