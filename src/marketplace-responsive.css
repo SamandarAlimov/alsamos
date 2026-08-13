@@ -21,6 +21,12 @@
   }
 }
 
+@media (min-width: 1920px) {
+  [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
 /* Prevent long seller/product content from forcing a grid track wider than
    the available marketplace column. */
 [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] > * {
