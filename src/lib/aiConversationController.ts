@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { aiGatewayClient, type AIStreamEvent, type AIGenerateRequest, type AIRoute } from './aiGatewayClient';
 import { detectIntent } from './aiIntent';
 
@@ -12,6 +12,16 @@ const idleState = (): AIConversationControllerState => ({ messages: [], busy: fa
 export function useAIConversationController() {
   const [state, setState] = useState<AIConversationControllerState>(idleState);
   const abortRef = useRef<AbortController | null>(null);
+  const selectedProjectRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const onProjectSelected = (event: Event) => {
+      const projectId = (event as CustomEvent<{ projectId?: string }>).detail?.projectId;
+      if (projectId) selectedProjectRef.current = projectId;
+    };
+    window.addEventListener('alsamos:select-ai-project', onProjectSelected);
+    return () => window.removeEventListener('alsamos:select-ai-project', onProjectSelected);
+  }, []);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -40,7 +50,8 @@ export function useAIConversationController() {
     const assistantId = makeId('assistant');
     const detected = detectIntent(text);
     const hintedRoute: AIRoute = detected.intent === 'image' ? 'image' : 'chat';
-    const base = { message: detected.prompt, conversationId: options.conversationId, projectId: options.projectId, modelMode: options.modelMode, hintedRoute, attachments: options.attachments };
+    const effectiveProjectId = options.projectId ?? selectedProjectRef.current ?? undefined;
+    const base = { message: detected.prompt, conversationId: options.conversationId, projectId: effectiveProjectId, modelMode: options.modelMode, hintedRoute, attachments: options.attachments };
     setState((s) => ({ ...s, busy: true, error: null, activeRoute: hintedRoute, messages: [...s.messages, { id: makeId('user'), role: 'user', content: message, status: 'completed' }, { id: assistantId, role: 'assistant', content: '', status: 'streaming', route: hintedRoute }] }));
     try {
       const intent = await aiGatewayClient.detectIntent(base, controller.signal);
