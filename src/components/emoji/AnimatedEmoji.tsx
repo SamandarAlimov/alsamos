@@ -18,24 +18,22 @@ function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-/**
- * Production emoji renderer.
- *
- * Static Alsamos SVG is always the canonical visual identity. Animation is a
- * finite enhancement and never replaces the idle artwork.
- */
+/** Production renderer: static artwork is always the canonical visual identity. */
 export function AnimatedEmoji({ emoji, size = 24, className, playOnHover = false, playOnClick = false, title }: AnimatedEmojiProps) {
   const alsamosStaticUrl = alsamosStaticEmojiUrl(emoji);
   const candidates = useMemo(() => animatedEmojiUrls(emoji), [emoji]);
   const [index, setIndex] = useState(0);
   const [failed, setFailed] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
-  const playback = useAlsamosEmojiPlayback(emoji);
+
+  // Resolve the asset once without animation so lifecycle duration is stable.
+  const baseRenderer = resolveAlsamosEmojiRenderer({ emoji, size, animate: false });
+  const playback = useAlsamosEmojiPlayback(emoji, baseRenderer?.durationMs ?? 900);
   const renderer = resolveAlsamosEmojiRenderer({ emoji, size, animate: playback.state === 'playing' });
   const rendererKind = renderer?.renderer;
-  const rendererDurationMs = renderer?.durationMs ?? 900;
-  const rendererKeyframes = renderer?.keyframes ?? [];
-  const rendererEasing = renderer?.easing ?? 'cubic-bezier(.22,.61,.36,1)';
+  const rendererDurationMs = renderer?.durationMs ?? baseRenderer?.durationMs ?? 900;
+  const rendererKeyframes = renderer?.keyframes ?? baseRenderer?.keyframes ?? [];
+  const rendererEasing = renderer?.easing ?? baseRenderer?.easing ?? 'cubic-bezier(.22,.61,.36,1)';
 
   useEffect(() => {
     setIndex(0);
