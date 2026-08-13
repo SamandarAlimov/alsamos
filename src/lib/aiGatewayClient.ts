@@ -19,12 +19,14 @@ export class AIGatewayTimeoutError extends Error {
 interface RequestController {
   signal: AbortSignal;
   didTimeout: () => boolean;
+  stopTimeout: () => void;
   cleanup: () => void;
 }
 
 function createRequestController(externalSignal: AbortSignal | undefined, timeoutMs: number): RequestController {
   const controller = new AbortController();
   let timedOut = false;
+  let timeoutActive = true;
   const timeout = window.setTimeout(() => {
     timedOut = true;
     controller.abort();
@@ -37,8 +39,14 @@ function createRequestController(externalSignal: AbortSignal | undefined, timeou
   return {
     signal: controller.signal,
     didTimeout: () => timedOut,
-    cleanup: () => {
+    stopTimeout: () => {
+      if (!timeoutActive) return;
+      timeoutActive = false;
       window.clearTimeout(timeout);
+    },
+    cleanup: () => {
+      if (timeoutActive) window.clearTimeout(timeout);
+      timeoutActive = false;
       externalSignal?.removeEventListener('abort', onAbort);
     },
   };
@@ -53,6 +61,7 @@ async function request<T>(url: string, init: RequestInit, externalSignal?: Abort
       headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
       credentials: 'include',
     });
+    requestController.stopTimeout();
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body?.error?.message ?? body?.message ?? `AI gateway request failed (${response.status})`);
     return body as T;
@@ -84,17 +93,11 @@ const processSSEFrame = (frame: string, onEvent: (event: AIStreamEvent) => void)
 
 export const aiGatewayClient = {
   detectIntent(input: AIIntentRequest, signal?: AbortSignal): Promise<AIIntentResponse> {
-    return request<AIIntentResponse>(AI_WORKSPACE_API.intent, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }, signal);
+    return request<AIIntentResponse>(AI_WORKSPACE_API.intent, { method: 'POST', body: JSON.stringify(input) }, signal);
   },
 
   generate(input: AIGenerateRequest, signal?: AbortSignal): Promise<{ messageId: string; conversationId: string; route: AIRoute }> {
-    return request(AI_WORKSPACE_API.generate, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }, signal);
+    return request(AI_WORKSPACE_API.generate, { method: 'POST', body: JSON.stringify(input) }, signal);
   },
 
   async stream(input: AIGenerateRequest, onEvent: (event: AIStreamEvent) => void, signal?: AbortSignal): Promise<void> {
@@ -108,58 +111,58 @@ export const aiGatewayClient = {
         body: JSON.stringify(input),
         signal: requestController.signal,
       });
+      requestController.stopTimeout();
+
+      if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? body?.message ?? `AI stream failed (${response.status})`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let doneByServer = false;
+
+      const readWithIdleTimeout = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+        let timer: number | undefined;
+        try {
+          return await Promise.race([
+            reader.read(),
+            new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
+              timer = window.setTimeout(() => reject(new AIGatewayTimeoutError('AI stream 90 soniya davomida yangi ma’lumot yubormadi.')), STREAM_IDLE_TIMEOUT_MS);
+            }),
+          ]);
+        } finally {
+          if (timer !== undefined) window.clearTimeout(timer);
+        }
+      };
+
+      try {
+        while (true) {
+          const { value, done } = await readWithIdleTimeout();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const frames = buffer.split(/\r?\n\r?\n/);
+          buffer = frames.pop() ?? '';
+          for (const frame of frames) {
+            if (processSSEFrame(frame, onEvent)) {
+              doneByServer = true;
+              break;
+            }
+          }
+          if (doneByServer) break;
+        }
+        buffer += decoder.decode();
+        if (!doneByServer && buffer.trim()) processSSEFrame(buffer, onEvent);
+      } finally {
+        try { await reader.cancel(); } catch { /* stream is already closed */ }
+        reader.releaseLock();
+      }
     } catch (error) {
       if (requestController.didTimeout()) throw new AIGatewayTimeoutError('AI stream ulanishi vaqtida javob kelmadi.');
       throw error;
     } finally {
       requestController.cleanup();
-    }
-
-    if (!response.ok || !response.body) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body?.error?.message ?? body?.message ?? `AI stream failed (${response.status})`);
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let doneByServer = false;
-
-    const readWithIdleTimeout = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
-      let timer: number | undefined;
-      try {
-        return await Promise.race([
-          reader.read(),
-          new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
-            timer = window.setTimeout(() => reject(new AIGatewayTimeoutError('AI stream 90 soniya davomida yangi ma’lumot yubormadi.')), STREAM_IDLE_TIMEOUT_MS);
-          }),
-        ]);
-      } finally {
-        if (timer !== undefined) window.clearTimeout(timer);
-      }
-    };
-
-    try {
-      while (true) {
-        const { value, done } = await readWithIdleTimeout();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split(/\r?\n\r?\n/);
-        buffer = frames.pop() ?? '';
-        for (const frame of frames) {
-          if (processSSEFrame(frame, onEvent)) {
-            doneByServer = true;
-            break;
-          }
-        }
-        if (doneByServer) break;
-      }
-
-      buffer += decoder.decode();
-      if (!doneByServer && buffer.trim()) processSSEFrame(buffer, onEvent);
-    } finally {
-      try { await reader.cancel(); } catch { /* stream is already closed */ }
-      reader.releaseLock();
     }
   },
 };
