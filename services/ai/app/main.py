@@ -1,12 +1,12 @@
 import json
 import os
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
-app = FastAPI(title="Alsamos AI Gateway", version="0.2.0")
+app = FastAPI(title="Alsamos AI Gateway", version="0.3.0")
 DEFAULT_MODEL = os.getenv("AI_MODEL", "pollinations/openai")
 ROUTES = {"chat", "image", "video", "document", "code", "spreadsheet", "slides", "diagram"}
 
@@ -59,6 +59,31 @@ def build_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
     return messages
 
 
+def provider_config(model: str) -> tuple[str, str, dict[str, str]]:
+    if model.startswith("openrouter/"):
+        key = os.getenv("OPENROUTER_API_KEY")
+        if not key:
+            raise HTTPException(status_code=503, detail="OPENROUTER_API_KEY is not configured")
+        return (
+            "https://openrouter.ai/api/v1/chat/completions",
+            model.removeprefix("openrouter/"),
+            {
+                "Authorization": f"Bearer {key}",
+                "HTTP-Referer": os.getenv("APP_PUBLIC_URL", "https://alsamos.com"),
+                "X-Title": "Alsamos",
+            },
+        )
+    return "https://text.pollinations.ai/openai", model.removeprefix("pollinations/"), {}
+
+
+async def provider_completion(payload: dict[str, Any], stream: bool = False) -> httpx.Response:
+    model = str(payload.get("model") or DEFAULT_MODEL)
+    url, provider_model, headers = provider_config(model)
+    forwarded = {**payload, "model": provider_model, "stream": stream}
+    async with httpx.AsyncClient(timeout=None if stream else 60) as client:
+        return await client.post(url, headers=headers, json=forwarded)
+
+
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
@@ -77,20 +102,6 @@ async def intent(payload: dict[str, Any], x_api_key: str | None = Header(default
     return {"route": route, "confidence": confidence, "requiresClarification": False}
 
 
-async def provider_completion(payload: dict[str, Any], stream: bool = False) -> httpx.Response:
-    model = str(payload.get("model") or DEFAULT_MODEL)
-    if model.startswith("openrouter/"):
-        key = os.getenv("OPENROUTER_API_KEY")
-        if not key:
-            raise HTTPException(status_code=503, detail="OPENROUTER_API_KEY is not configured")
-        forwarded = {**payload, "model": model.removeprefix("openrouter/"), "stream": stream}
-        async with httpx.AsyncClient(timeout=None if stream else 60) as client:
-            return await client.post("https://openrouter.ai/api/v1/chat/completions", headers={"Authorization": f"Bearer {key}", "HTTP-Referer": os.getenv("APP_PUBLIC_URL", "https://alsamos.com"), "X-Title": "Alsamos"}, json=forwarded)
-    forwarded = {**payload, "model": model.removeprefix("pollinations/"), "stream": stream}
-    async with httpx.AsyncClient(timeout=None if stream else 60) as client:
-        return await client.post("https://text.pollinations.ai/openai", json=forwarded)
-
-
 @app.post("/v1/generate")
 async def generate(payload: dict[str, Any], x_api_key: str | None = Header(default=None), x_alsamos_subject: str | None = Header(default=None)) -> dict[str, Any]:
     require_access(x_api_key, x_alsamos_subject)
@@ -103,52 +114,50 @@ async def generate(payload: dict[str, Any], x_api_key: str | None = Header(defau
     return {"messageId": os.urandom(12).hex(), "conversationId": payload.get("conversationId") or os.urandom(12).hex(), "route": route, "content": content}
 
 
+async def provider_stream(payload: dict[str, Any]) -> AsyncIterator[str]:
+    model = str(payload.get("model") or DEFAULT_MODEL)
+    url, provider_model, headers = provider_config(model)
+    request_payload = {**payload, "model": provider_model, "stream": True}
+    async with httpx.AsyncClient(timeout=None) as client:
+        async with client.stream("POST", url, headers=headers, json=request_payload) as response:
+            if response.status_code >= 400:
+                body = await response.aread()
+                yield f"data: {json.dumps({'type':'error','error':{'code':str(response.status_code),'message':body.decode(errors='replace'),'retryable':response.status_code >= 500}})}\n\n"
+                return
+            buffer = ""
+            async for chunk in response.aiter_text():
+                buffer += chunk
+                frames = buffer.split("\n\n")
+                buffer = frames.pop() or ""
+                for frame in frames:
+                    for line in frame.splitlines():
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line[5:].strip()
+                        if not raw or raw == "[DONE]":
+                            continue
+                        try:
+                            data = json.loads(raw)
+                            delta = data.get("choices", [{}])[0].get("delta", {}).get("content")
+                            if delta:
+                                yield f"data: {json.dumps({'type':'message.delta','delta':delta})}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+
+
 @app.post("/v1/stream")
 async def stream(payload: dict[str, Any], x_api_key: str | None = Header(default=None), x_alsamos_subject: str | None = Header(default=None)) -> StreamingResponse:
     require_access(x_api_key, x_alsamos_subject)
     route, _ = classify(str(payload.get("message") or ""), payload.get("route"))
-    request_payload = {"model": DEFAULT_MODEL, "messages": build_messages(payload), "stream": True}
+    message_id = os.urandom(12).hex()
 
     async def event_stream():
-        message_id = os.urandom(12).hex()
-        async with httpx.AsyncClient(timeout=None) as client:
-            model = DEFAULT_MODEL.removeprefix("pollinations/")
-            url = "https://text.pollinations.ai/openai"
-            headers: dict[str, str] = {}
-            if DEFAULT_MODEL.startswith("openrouter/"):
-                key = os.getenv("OPENROUTER_API_KEY")
-                if not key:
-                    yield f"data: {json.dumps({'type':'error','error':{'code':'provider_not_configured','message':'OPENROUTER_API_KEY is not configured','retryable':False}})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                model = DEFAULT_MODEL.removeprefix("openrouter/")
-                url = "https://openrouter.ai/api/v1/chat/completions"
-                headers = {"Authorization": f"Bearer {key}", "HTTP-Referer": os.getenv("APP_PUBLIC_URL", "https://alsamos.com"), "X-Title": "Alsamos"}
-            async with client.stream("POST", url, headers=headers, json={**request_payload, "model": model}) as response:
-                if response.status_code >= 400:
-                    body = await response.aread()
-                    yield f"data: {json.dumps({'type':'error','error':{'code':str(response.status_code),'message':body.decode(errors='replace'),'retryable':response.status_code >= 500}})}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                buffer = ""
-                async for chunk in response.aiter_text():
-                    buffer += chunk
-                    frames = buffer.split("\n\n")
-                    buffer = frames.pop() or ""
-                    for frame in frames:
-                        for line in frame.splitlines():
-                            if not line.startswith("data:"):
-                                continue
-                            raw = line[5:].strip()
-                            if not raw or raw == "[DONE]":
-                                continue
-                            try:
-                                data = json.loads(raw)
-                                delta = data.get("choices", [{}])[0].get("delta", {}).get("content")
-                                if delta:
-                                    yield f"data: {json.dumps({'type':'message.delta','delta':delta})}\n\n"
-                            except json.JSONDecodeError:
-                                continue
+        try:
+            async for event in provider_stream({"model": DEFAULT_MODEL, "messages": build_messages(payload)}):
+                yield event
+        except HTTPException as exc:
+            yield f"data: {json.dumps({'type':'error','error':{'code':str(exc.status_code),'message':str(exc.detail),'retryable':exc.status_code >= 500}})}\n\n"
+            return
         yield f"data: {json.dumps({'type':'message.completed','messageId':message_id,'route':route})}\n\n"
         yield "data: [DONE]\n\n"
 
