@@ -1,0 +1,10 @@
+/* Alsamos Original Emoji — static artwork design tokens. */
+:root {
+  --alsamos-face: #FFD95A;
+  --alsamos-face-mid: #FFC83D;
+  --alsamos-face-shadow: #E6A928;
+  --alsamos-highlight: #FFF8D6;
+  --alsamos-feature: #3A2A1A;
+  --alsamos-orange: #F26C21;
+  --alsamos-red: #E83F51;
+}
