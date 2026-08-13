@@ -1,6 +1,14 @@
-/* Marketplace desktop density: the existing page uses lg:grid-cols-4.
-   At wide desktop widths the catalog should consume the available content width
-   instead of leaving a large unused right-side column. */
+/* Marketplace responsive catalog density.
+   The page keeps Tailwind breakpoint classes for mobile/tablet while this layer
+   gives wide desktop enough columns to consume the actual content width. */
+@media (min-width: 1024px) {
+  [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    grid-auto-rows: max-content;
+  }
+}
+
 @media (min-width: 1280px) {
   [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -11,4 +19,15 @@
   [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+}
+
+/* Prevent long seller/product content from forcing a grid track wider than
+   the available marketplace column. */
+[class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] > * {
+  min-width: 0;
+}
+
+/* Keep the product-card image/content rhythm stable when the viewport grows. */
+[class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] img {
+  max-width: 100%;
 }
