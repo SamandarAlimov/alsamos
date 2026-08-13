@@ -54,6 +54,40 @@
 [class~="grid"][class~="gap-3"] > * { min-width: 0; }
 [class~="grid"][class~="gap-3"] img { max-width: 100%; }
 
+/* Trending is a catalog section, not a horizontal carousel on desktop. */
+@media (min-width: 768px) {
+  [class~="flex"][class~="gap-3"][class~="pb-2"]:has(> [class~="w-36"][class~="shrink-0"]) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    overflow: visible;
+    padding-bottom: 0.25rem;
+  }
+
+  [class~="flex"][class~="gap-3"][class~="pb-2"]:has(> [class~="w-36"][class~="shrink-0"]) > [class~="w-36"][class~="shrink-0"] {
+    width: auto;
+    min-width: 0;
+  }
+}
+
+@media (min-width: 1100px) {
+  [class~="flex"][class~="gap-3"][class~="pb-2"]:has(> [class~="w-36"][class~="shrink-0"]) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1440px) {
+  [class~="flex"][class~="gap-3"][class~="pb-2"]:has(> [class~="w-36"][class~="shrink-0"]) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1800px) {
+  [class~="flex"][class~="gap-3"][class~="pb-2"]:has(> [class~="w-36"][class~="shrink-0"]) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 1024px) {
   [class~="w-36"][class~="shrink-0"] {
     width: clamp(9rem, 12vw, 12rem);
