@@ -19,6 +19,19 @@ begin
     raise exception 'authentication required';
   end if;
 
+  -- Serialize restores for the same artifact. Without this lock, two concurrent
+  -- restores can both calculate the same max(version) + 1 and race on the
+  -- unique (artifact_id, version) constraint.
+  perform 1
+  from public.ai_artifacts
+  where id = p_artifact_id
+    and owner_id = auth.uid()
+  for update;
+
+  if not found then
+    raise exception 'artifact not found';
+  end if;
+
   select * into source_version
   from public.ai_artifact_versions
   where artifact_id = p_artifact_id
@@ -53,9 +66,13 @@ begin
       storage_url = source_version.storage_url,
       metadata = source_version.metadata,
       updated_at = now()
-  where id = p_artifact_id and owner_id = auth.uid();
+  where id = p_artifact_id
+    and owner_id = auth.uid();
 
-  if not found then raise exception 'artifact not found'; end if;
+  if not found then
+    raise exception 'artifact not found';
+  end if;
+
   return new_version_id;
 end;
 $$;
