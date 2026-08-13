@@ -14,32 +14,17 @@ interface AnimatedEmojiProps {
   title?: string;
 }
 
-/**
- * Unified emoji renderer.
- *
- * Alsamos-owned artwork is always preferred. The static SVG is the canonical
- * idle state. Animation is selected through the renderer adapter so the UI
- * never depends directly on a Lottie implementation.
- */
-export function AnimatedEmoji({
-  emoji,
-  size = 24,
-  className,
-  playOnHover = false,
-  playOnClick = false,
-  title,
-}: AnimatedEmojiProps) {
+/** Unified renderer: Alsamos artwork first, renderer implementation second. */
+export function AnimatedEmoji({ emoji, size = 24, className, playOnHover = false, playOnClick = false, title }: AnimatedEmojiProps) {
   const alsamosStaticUrl = alsamosStaticEmojiUrl(emoji);
   const candidates = useMemo(() => animatedEmojiUrls(emoji), [emoji]);
   const [index, setIndex] = useState(0);
   const [failed, setFailed] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
   const playback = useAlsamosEmojiPlayback(emoji);
-  const renderer = resolveAlsamosEmojiRenderer({
-    emoji,
-    size,
-    animate: playback.state === 'playing',
-  });
+  const renderer = resolveAlsamosEmojiRenderer({ emoji, size, animate: playback.state === 'playing' });
+  const rendererKind = renderer?.renderer;
+  const rendererDurationMs = renderer?.durationMs ?? 900;
 
   useEffect(() => {
     setIndex(0);
@@ -47,9 +32,9 @@ export function AnimatedEmoji({
   }, [emoji]);
 
   useEffect(() => {
-    if (!renderer || renderer.renderer !== 'web-animation' || !imageRef.current) return;
+    if (!imageRef.current) return;
 
-    if (playback.state !== 'playing') {
+    if (rendererKind !== 'web-animation' || playback.state !== 'playing') {
       imageRef.current.getAnimations().forEach((animation) => animation.cancel());
       return;
     }
@@ -62,19 +47,14 @@ export function AnimatedEmoji({
         { transform: 'scale(1.05) rotate(-2deg)', offset: 0.78 },
         { transform: 'scale(1) rotate(0deg)', offset: 1 },
       ],
-      {
-        duration: renderer.durationMs,
-        easing: 'cubic-bezier(.22,.61,.36,1)',
-        fill: 'both',
-      },
+      { duration: rendererDurationMs, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'both' },
     );
 
     return () => animation.cancel();
-  }, [playback.state, renderer]);
+  }, [playback.state, rendererDurationMs, rendererKind]);
 
   if (alsamosStaticUrl) {
     const play = () => playback.play();
-
     return (
       <img
         ref={imageRef}
@@ -86,26 +66,14 @@ export function AnimatedEmoji({
         height={size}
         onClick={playOnClick ? play : undefined}
         onMouseEnter={playOnHover ? play : undefined}
-        className={cn(
-          'inline-block object-contain select-none',
-          (playOnHover || playOnClick) && 'cursor-pointer',
-          className,
-        )}
+        className={cn('inline-block object-contain select-none', (playOnHover || playOnClick) && 'cursor-pointer', className)}
         style={{ width: size, height: size, transformOrigin: 'center center' }}
       />
     );
   }
 
   if (failed) {
-    return (
-      <span
-        className={cn('inline-flex items-center justify-center leading-none select-none', className)}
-        style={{ fontSize: size * 0.92, width: size, height: size }}
-        title={title}
-      >
-        {emoji}
-      </span>
-    );
+    return <span className={cn('inline-flex items-center justify-center leading-none select-none', className)} style={{ fontSize: size * 0.92, width: size, height: size }} title={title}>{emoji}</span>;
   }
 
   return (
@@ -117,10 +85,7 @@ export function AnimatedEmoji({
       draggable={false}
       width={size}
       height={size}
-      onError={() => {
-        if (index < candidates.length - 1) setIndex(index + 1);
-        else setFailed(true);
-      }}
+      onError={() => index < candidates.length - 1 ? setIndex(index + 1) : setFailed(true)}
       className={cn('inline-block object-contain select-none', className)}
       style={{ width: size, height: size }}
     />
