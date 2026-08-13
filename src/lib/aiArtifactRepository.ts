@@ -63,6 +63,18 @@ async function currentOwnerId() {
   return session.session?.user.id ?? null;
 }
 
+async function createTransactionalVersion(artifactId: string, content: string, language?: string | null, metadata?: Record<string, unknown>, storageUrl?: string | null) {
+  const { data, error } = await supabase.rpc('ai_create_artifact_version', {
+    p_artifact_id: artifactId,
+    p_content: content,
+    p_language: language ?? null,
+    p_metadata: metadata ?? {},
+    p_storage_url: storageUrl ?? null,
+  });
+  if (error) throw error;
+  return data?.[0] as { artifact_id: string; version: number; version_id: string | null; created: boolean } | undefined;
+}
+
 export const aiArtifactRepository = {
   async list(conversationId?: string, projectId?: string): Promise<PersistedAIArtifact[]> {
     let query = supabase.from('ai_artifacts').select('*').order('updated_at', { ascending: false });
@@ -101,30 +113,15 @@ export const aiArtifactRepository = {
   },
 
   async createVersion(artifactId: string, source: PersistedAIArtifact): Promise<number> {
-    const ownerId = await currentOwnerId();
-    if (!ownerId) throw new Error('Authentication required');
-    const { data: current, error: currentError } = await supabase
-      .from('ai_artifacts')
-      .select('version')
-      .eq('id', artifactId)
-      .eq('owner_id', ownerId)
-      .single();
-    if (currentError) throw currentError;
-
-    const nextVersion = Number(current.version ?? 0) + 1;
-    const { error } = await supabase.from('ai_artifact_versions').insert({
-      artifact_id: artifactId,
-      owner_id: ownerId,
-      version: nextVersion,
-      kind: source.kind,
-      title: source.title,
-      language: source.language ?? null,
-      content: source.content,
-      storage_url: source.storageUrl ?? null,
-      metadata: { source: 'artifact_update' },
-    });
-    if (error) throw error;
-    return nextVersion;
+    const result = await createTransactionalVersion(
+      artifactId,
+      source.content,
+      source.language,
+      { source: 'artifact_update' },
+      source.storageUrl,
+    );
+    if (!result) throw new Error('Artifact version transaction returned no result');
+    return Number(result.version);
   },
 
   async upsertFromMessage(artifact: AIArtifact, conversationId?: string | null, projectId?: string | null): Promise<string | null> {
@@ -139,50 +136,35 @@ export const aiArtifactRepository = {
       .eq('message_id', artifact.messageId)
       .eq('kind', artifact.kind)
       .eq('title', artifact.title);
-    const { data: existing } = conversationId
+    const { data: existing, error: existingError } = conversationId
       ? await existingQuery.eq('conversation_id', conversationId).maybeSingle()
       : await existingQuery.is('conversation_id', null).maybeSingle();
+    if (existingError) throw existingError;
 
     if (existing?.id) {
       if (existing.content === payload.content) return existing.id;
-      const nextVersion = Number(existing.version ?? 0) + 1;
-      const { error: snapshotError } = await supabase.from('ai_artifact_versions').insert({
-        artifact_id: existing.id,
-        owner_id: ownerId,
-        version: nextVersion,
-        kind: payload.kind,
-        title: payload.title,
-        language: payload.language,
-        content: payload.content,
-        storage_url: null,
-        metadata: payload.metadata,
-      });
-      if (snapshotError) throw snapshotError;
-      const { error } = await supabase
-        .from('ai_artifacts')
-        .update({ content: payload.content, language: payload.language, metadata: payload.metadata, version: nextVersion })
-        .eq('id', existing.id)
-        .eq('owner_id', ownerId);
-      if (error) throw error;
+      await createTransactionalVersion(
+        existing.id,
+        payload.content,
+        payload.language,
+        payload.metadata,
+        null,
+      );
       return existing.id;
     }
 
     const { data, error } = await supabase.from('ai_artifacts').insert({ ...payload, version: 1 }).select('id').single();
     if (error) throw error;
-    if (data?.id) {
-      const { error: snapshotError } = await supabase.from('ai_artifact_versions').insert({
-        artifact_id: data.id,
-        owner_id: ownerId,
-        version: 1,
-        kind: payload.kind,
-        title: payload.title,
-        language: payload.language,
-        content: payload.content,
-        storage_url: null,
-        metadata: payload.metadata,
-      });
-      if (snapshotError) throw snapshotError;
-    }
-    return data?.id ?? null;
+    if (!data?.id) return null;
+
+    const { error: snapshotError } = await supabase.rpc('ai_create_artifact_version', {
+      p_artifact_id: data.id,
+      p_content: payload.content,
+      p_language: payload.language,
+      p_metadata: payload.metadata,
+      p_storage_url: null,
+    });
+    if (snapshotError) throw snapshotError;
+    return data.id;
   },
 };
