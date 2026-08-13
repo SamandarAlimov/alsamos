@@ -1,6 +1,11 @@
-/* Marketplace responsive catalog density.
-   The page keeps Tailwind breakpoint classes for mobile/tablet while this layer
-   gives wide desktop enough columns to consume the actual content width. */
+/* Marketplace responsive catalog density. */
+
+@media (min-width: 640px) {
+  [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 1024px) {
   [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -27,13 +32,30 @@
   }
 }
 
-/* Prevent long seller/product content from forcing a grid track wider than
-   the available marketplace column. */
-[class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] > * {
-  min-width: 0;
+/* Saved and seller grids must not remain two-column on desktop. */
+@media (min-width: 768px) {
+  [class~="grid-cols-2"][class~="gap-3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
-/* Keep the product-card image/content rhythm stable when the viewport grows. */
-[class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] img {
-  max-width: 100%;
+@media (min-width: 1100px) {
+  [class~="grid-cols-2"][class~="gap-3"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  [class~="grid-cols-2"][class~="gap-3"] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+[class~="grid"][class~="gap-3"] > * { min-width: 0; }
+[class~="grid"][class~="gap-3"] img { max-width: 100%; }
+
+@media (min-width: 1024px) {
+  [class~="w-36"][class~="shrink-0"] {
+    width: clamp(9rem, 12vw, 12rem);
+  }
 }
