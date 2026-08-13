@@ -1,7 +1,7 @@
 import { AI_WORKSPACE_API, type AIModelMode } from './aiWorkspaceArchitecture';
 
 export type AIRoute = 'chat' | 'image' | 'video' | 'document' | 'code' | 'spreadsheet' | 'slides' | 'diagram';
-export interface AIIntentRequest { message: string; conversationId?: string; projectId?: string; modelMode?: AIModelMode; hintedRoute?: AIRoute; attachments?: Array<{ id: string; name: string; mimeType: string }> }
+export interface AIIntentRequest { message: string; conversationId?: string; projectId?: string; projectInstructions?: string; memoryContext?: string[]; modelMode?: AIModelMode; hintedRoute?: AIRoute; attachments?: Array<{ id: string; name: string; mimeType: string }> }
 export interface AIIntentResponse { route: AIRoute; confidence: number; requiresClarification: boolean; clarification?: string }
 export interface AIGenerateRequest extends AIIntentRequest { route: AIRoute; skillIds?: string[] }
 export interface AIStreamEvent { type: 'message.delta' | 'message.completed' | 'artifact.created' | 'task.updated' | 'error'; delta?: string; messageId?: string; artifactId?: string; taskId?: string; error?: { code: string; message: string; retryable: boolean } }
