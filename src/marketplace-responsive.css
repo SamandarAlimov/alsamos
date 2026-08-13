@@ -1,5 +1,9 @@
-/* Marketplace responsive catalog density. */
+/* Marketplace responsive catalog density.
+ * Keep the catalog width-driven: data count must determine rows, while the
+ * available viewport determines columns. No fixed card count is encoded here.
+ */
 
+/* Main catalog grid: 2 -> 3 -> 4 -> 5 -> 6 -> 7 columns. */
 @media (min-width: 640px) {
   [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -9,8 +13,6 @@
 @media (min-width: 1024px) {
   [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: start;
-    grid-auto-rows: max-content;
   }
 }
 
@@ -32,7 +34,7 @@
   }
 }
 
-/* Saved and seller grids must not remain two-column on desktop. */
+/* Saved + seller catalogs: never stay artificially narrow on desktop. */
 @media (min-width: 768px) {
   [class~="grid-cols-2"][class~="gap-3"] {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -51,10 +53,24 @@
   }
 }
 
-[class~="grid"][class~="gap-3"] > * { min-width: 0; }
-[class~="grid"][class~="gap-3"] img { max-width: 100%; }
+/* Prevent grid children from stretching into misleading empty vertical space. */
+[class~="grid"][class~="gap-3"] {
+  align-items: start;
+  grid-auto-rows: max-content;
+}
 
-/* Trending is a catalog section, not a horizontal carousel on desktop. */
+[class~="grid"][class~="gap-3"] > * {
+  min-width: 0;
+  align-self: start;
+}
+
+[class~="grid"][class~="gap-3"] img {
+  max-width: 100%;
+}
+
+/* Trending: keep the mobile carousel, but turn it into a real catalog grid on
+ * desktop so the available width is used instead of clustering cards at left.
+ */
 @media (min-width: 768px) {
   [class~="flex"][class~="gap-3"][class~="pb-2"]:has(> [class~="w-36"][class~="shrink-0"]) {
     display: grid;
@@ -62,11 +78,14 @@
     gap: 0.75rem;
     overflow: visible;
     padding-bottom: 0.25rem;
+    align-items: start;
+    grid-auto-rows: max-content;
   }
 
   [class~="flex"][class~="gap-3"][class~="pb-2"]:has(> [class~="w-36"][class~="shrink-0"]) > [class~="w-36"][class~="shrink-0"] {
     width: auto;
     min-width: 0;
+    align-self: start;
   }
 }
 
