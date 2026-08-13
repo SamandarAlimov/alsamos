@@ -11,7 +11,6 @@ import { VideoPlayerProvider } from "@/contexts/VideoPlayerContext";
 import { ThemeProvider } from "next-themes";
 import { PushNotificationProvider } from "@/components/PushNotificationProvider";
 
-// Pages
 import AuthPage from "./pages/AuthPage";
 import HomePage from "./pages/HomePage";
 import MessagesPage from "./pages/MessagesPage";
@@ -28,48 +27,28 @@ import MarketplacePage from "./pages/MarketplacePage";
 import AdminPage from "./pages/AdminPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import StoryArchivePage from "./pages/StoryArchivePage";
-import AIPage from "./pages/AIPage";
+import AIPage from "./pages/AIPageV3";
 import OAuthConsent from "./pages/OAuthConsent";
 import ActivityPage from "./pages/ActivityPage";
 import AdsPage from "./pages/AdsPage";
 import ChannelsPage from "./pages/ChannelsPage";
 import MiniAppsPage from "./pages/MiniAppsPage";
 import NotFound from "./pages/NotFound";
-
-// Layout
 import { AppLayout } from "./components/layout/AppLayout";
 import { RouteSEO } from "./components/RouteSEO";
 
 const queryClient = new QueryClient();
 
-// Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-  
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
 }
 
-// Auth route - redirects to home (or ?next) if already logged in
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const [searchParams] = useSearchParams();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   if (isAuthenticated) {
     const next = searchParams.get('next');
     const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/home';
@@ -78,104 +57,41 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Placeholder pages
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold mb-2">{title}</h1>
-        <p className="text-muted-foreground">Coming soon...</p>
-      </div>
-    </div>
-  );
-}
-
 function AppRoutes() {
-  return (
-    <>
-      <RouteSEO />
-      <Routes>
-      {/* Auth - First screen before login */}
-      <Route path="/" element={
-        <AuthRoute>
-          <AuthPage />
-        </AuthRoute>
-      } />
-
-      {/* OAuth consent page (public — handles its own auth check) */}
-      <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
-
-      
-      {/* Protected App Routes */}
-      <Route element={<AppLayout />}>
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/discover" element={<DiscoveryPage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/videos" element={<VideosPage />} />
-        <Route path="/messages" element={<MessagesPage />} />
-        <Route path="/marketplace" element={<MarketplacePage />} />
-        <Route path="/map" element={<MapPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/create" element={<CreatePage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/user/:username" element={<UserProfilePage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/payment" element={<PaymentSettingsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/story-archive" element={<StoryArchivePage />} />
-        <Route path="/ai" element={<AIPage />} />
-        <Route path="/activity" element={<ActivityPage />} />
-        <Route path="/ads" element={<AdsPage />} />
-        <Route path="/channels" element={<ChannelsPage />} />
-        <Route path="/mini-apps" element={<MiniAppsPage />} />
-      </Route>
-      
-      {/* 404 */}
-      <Route path="*" element={<NotFound />} />
-      </Routes>
-    </>
-  );
+  return <><RouteSEO /><Routes>
+    <Route path="/" element={<AuthRoute><AuthPage /></AuthRoute>} />
+    <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+    <Route element={<AppLayout />}>
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/discover" element={<DiscoveryPage />} />
+      <Route path="/search" element={<SearchPage />} />
+      <Route path="/videos" element={<VideosPage />} />
+      <Route path="/messages" element={<MessagesPage />} />
+      <Route path="/marketplace" element={<MarketplacePage />} />
+      <Route path="/map" element={<MapPage />} />
+      <Route path="/notifications" element={<NotificationsPage />} />
+      <Route path="/create" element={<CreatePage />} />
+      <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/user/:username" element={<UserProfilePage />} />
+      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/payment" element={<PaymentSettingsPage />} />
+      <Route path="/admin" element={<AdminPage />} />
+      <Route path="/story-archive" element={<StoryArchivePage />} />
+      <Route path="/ai" element={<AIPage />} />
+      <Route path="/activity" element={<ActivityPage />} />
+      <Route path="/ads" element={<AdsPage />} />
+      <Route path="/channels" element={<ChannelsPage />} />
+      <Route path="/mini-apps" element={<MiniAppsPage />} />
+    </Route>
+    <Route path="*" element={<NotFound />} />
+  </Routes></>;
 }
 
-// Wrapper component that provides GlobalCallProvider inside BrowserRouter
 function AppWithGlobalCall() {
   const { isAuthenticated } = useAuth();
-  
-  return (
-    <>
-      <Toaster />
-      <Sonner />
-      {isAuthenticated ? (
-        <PushNotificationProvider>
-          <OnlinePresenceProvider>
-            <GlobalCallProvider>
-              <AppRoutes />
-            </GlobalCallProvider>
-          </OnlinePresenceProvider>
-        </PushNotificationProvider>
-      ) : (
-        <AppRoutes />
-      )}
-    </>
-  );
+  return <><Toaster /><Sonner />{isAuthenticated ? <PushNotificationProvider><OnlinePresenceProvider><GlobalCallProvider><AppRoutes /></GlobalCallProvider></OnlinePresenceProvider></PushNotificationProvider> : <AppRoutes />}</>;
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <TooltipProvider>
-        <AudioPlayerProvider>
-          <VideoPlayerProvider>
-            <AuthProvider>
-              <BrowserRouter>
-                <AppWithGlobalCall />
-              </BrowserRouter>
-            </AuthProvider>
-          </VideoPlayerProvider>
-        </AudioPlayerProvider>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const App = () => <QueryClientProvider client={queryClient}><ThemeProvider attribute="class" defaultTheme="system" enableSystem><TooltipProvider><AudioPlayerProvider><VideoPlayerProvider><AuthProvider><BrowserRouter><AppWithGlobalCall /></BrowserRouter></AuthProvider></VideoPlayerProvider></AudioPlayerProvider></TooltipProvider></ThemeProvider></QueryClientProvider>;
 
 export default App;
