@@ -7,15 +7,28 @@ export interface SendAIMessageOptions { conversationId?: string; projectId?: str
 export interface AIConversationControllerState { messages: AIConversationMessage[]; busy: boolean; error: string | null; activeRoute: AIRoute | null; artifactIds: string[]; taskIds: string[] }
 
 const makeId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
+const idleState = (): AIConversationControllerState => ({ messages: [], busy: false, error: null, activeRoute: null, artifactIds: [], taskIds: [] });
 
 export function useAIConversationController() {
-  const [state, setState] = useState<AIConversationControllerState>({ messages: [], busy: false, error: null, activeRoute: null, artifactIds: [], taskIds: [] });
+  const [state, setState] = useState<AIConversationControllerState>(idleState);
   const abortRef = useRef<AbortController | null>(null);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     setState((s) => ({ ...s, busy: false, messages: s.messages.map((m) => m.status === 'streaming' ? { ...m, status: 'completed' } : m) }));
+  }, []);
+
+  const clear = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setState(idleState());
+  }, []);
+
+  const hydrate = useCallback((messages: AIConversationMessage[]) => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setState({ messages, busy: false, error: null, activeRoute: messages.at(-1)?.route ?? null, artifactIds: messages.flatMap((m) => m.artifactId ? [m.artifactId] : []), taskIds: messages.flatMap((m) => m.taskId ? [m.taskId] : []) });
   }, []);
 
   const send = useCallback(async (message: string, options: SendAIMessageOptions = {}) => {
@@ -53,5 +66,5 @@ export function useAIConversationController() {
     }
   }, []);
 
-  return { state, send, stop };
+  return { state, send, stop, clear, hydrate };
 }
