@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Menu, Plus, Sparkles, PanelRight, Paperclip, ArrowUp, Square, X, AlertCircle, FolderKanban, Package, PlugZap, Wrench } from 'lucide-react';
+import { ArrowLeft, Menu, Plus, Sparkles, PanelRight, Paperclip, ArrowUp, Square, X, AlertCircle, FolderKanban, Package, PlugZap, Wrench, Home } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,8 @@ import type { AIConversation, AIMessage } from '@/components/ai/types';
 import type { ComposerAttachment } from '@/components/ai/AIComposer';
 import { useAIConversationController, type AIConversationMessage } from '@/lib/aiConversationController';
 import { extractArtifacts } from '@/lib/aiArtifacts';
-import { detectIntent, SLASH_COMMANDS } from '@/lib/aiIntent';
+import { SLASH_COMMANDS } from '@/lib/aiIntent';
+import { useNavigate } from 'react-router-dom';
 
 const PIN_KEY = 'alsamos.ai.pinned';
 const TITLE_KEY = 'alsamos.ai.titles';
@@ -26,6 +27,7 @@ const toController = (items: AIMessage[]): AIConversationMessage[] => items.map(
 const toDomain = (items: AIConversationMessage[]): AIMessage[] => items.map((m) => ({ id: m.id, role: m.role, content: m.content, error: m.status === 'error', timestamp: new Date() }));
 
 export default function AIPageV3() {
+  const navigate = useNavigate();
   const { user, profile } = useAuth();
   const isMobile = useIsMobile();
   const { state, send, stop, clear, hydrate } = useAIConversationController();
@@ -129,11 +131,19 @@ export default function AIPageV3() {
     ['projects', 'Projects', FolderKanban], ['artifacts', 'Artifacts', Package], ['connectors', 'Connectors', PlugZap], ['skills', 'Plugins / Skills', Wrench],
   ] as const;
 
+  const goToMainMenu = useCallback(() => {
+    stop();
+    navigate('/home');
+  }, [navigate, stop]);
+
   return <div className="relative flex h-[calc(100dvh-4rem)] min-h-0 overflow-hidden bg-background md:h-[calc(100dvh-2rem)]">
-    {sidebarOpen && <><div className={isMobile ? 'fixed inset-0 z-40 bg-black/50 backdrop-blur-sm' : 'hidden'} onClick={() => setSidebarOpen(false)} /><aside className={isMobile ? 'fixed inset-y-0 left-0 z-50 w-[min(88vw,340px)] bg-background shadow-2xl' : 'relative z-20 h-full w-[280px] shrink-0 border-r border-border/50 bg-card/30'}><AISidebar conversations={conversations} loading={historyLoading} activeId={currentId} isMobile={isMobile} profile={profile} onNew={startNew} onSelect={selectConversation} onDelete={deleteConversation} onRename={renameConversation} onTogglePin={togglePin} onClose={() => setSidebarOpen(false)} /><div className="border-t border-border/50 p-2">{workspaceItems.map(([key, label, Icon]) => <button key={key} onClick={() => setWorkspace(key)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"><Icon className="h-4 w-4" />{label}</button>)}</div></aside></>}
+    {sidebarOpen && <><div className={isMobile ? 'fixed inset-0 z-40 bg-black/50 backdrop-blur-sm' : 'hidden'} onClick={() => setSidebarOpen(false)} /><aside className={isMobile ? 'fixed inset-y-0 left-0 z-50 w-[min(88vw,340px)] bg-background shadow-2xl' : 'relative z-20 h-full w-[280px] shrink-0 border-r border-border/50 bg-card/30'}><AISidebar conversations={conversations} loading={historyLoading} activeId={currentId} isMobile={isMobile} profile={profile} onNew={startNew} onSelect={selectConversation} onDelete={deleteConversation} onRename={renameConversation} onTogglePin={togglePin} onClose={() => setSidebarOpen(false)} /><div className="border-t border-border/50 p-2"><button onClick={goToMainMenu} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"><Home className="h-4 w-4" />Bosh menyu</button>{workspaceItems.map(([key, label, Icon]) => <button key={key} onClick={() => setWorkspace(key)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"><Icon className="h-4 w-4" />{label}</button>)}</div></aside></>}
 
     <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/50 bg-background/85 px-3 backdrop-blur-xl sm:h-16 sm:px-5"><Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSidebarOpen((v) => !v)}><Menu className="h-5 w-5" /></Button><div className="flex min-w-0 items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary"><Sparkles className="h-4 w-4" /></div><div><h1 className="text-sm font-semibold">Alsamos AI</h1><p className="hidden text-[10px] text-muted-foreground sm:block">Unified intelligent workspace</p></div></div><div className="ml-auto flex items-center gap-1"><Button variant="ghost" size="icon" className="h-9 w-9" onClick={startNew}><Plus className="h-4 w-4" /></Button>{artifacts.length > 0 && <Button variant={artifactOpen ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9" onClick={() => setArtifactOpen((v) => !v)}><PanelRight className="h-4 w-4" /></Button>}</div></header>
+      <header className="flex h-14 shrink-0 items-center gap-1.5 border-b border-border/50 bg-background/85 px-2.5 backdrop-blur-xl sm:h-16 sm:gap-2 sm:px-5">
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSidebarOpen((v) => !v)} aria-label="AI menyusini ochish"><Menu className="h-5 w-5" /></Button>
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={goToMainMenu} aria-label="Bosh menyuga qaytish" title="Bosh menyu"><ArrowLeft className="h-5 w-5" /></Button>
+        <div className="flex min-w-0 items-center gap-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Sparkles className="h-4 w-4" /></div><div><h1 className="text-sm font-semibold">Alsamos AI</h1><p className="hidden text-[10px] text-muted-foreground sm:block">Unified intelligent workspace</p></div></div><div className="ml-auto flex items-center gap-1"><Button variant="ghost" size="icon" className="h-9 w-9" onClick={startNew} aria-label="Yangi suhbat"><Plus className="h-4 w-4" /></Button>{artifacts.length > 0 && <Button variant={artifactOpen ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9" onClick={() => setArtifactOpen((v) => !v)} aria-label="Artifact paneli"><PanelRight className="h-4 w-4" /></Button>}</div></header>
 
       <div className="flex min-h-0 flex-1">
         <ScrollArea className="min-w-0 flex-1"><div className="mx-auto w-full max-w-4xl px-4 pb-44 pt-6 sm:px-6 sm:pt-10">
