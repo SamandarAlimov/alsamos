@@ -75,8 +75,10 @@ export function useAIConversationController() {
       if (!memoryContext) {
         memoryContext = await aiMemoryRepository.enabledContext(30);
       }
-      const persistedSkills = await aiSkillRepository.enabledSkillIds('global');
-      skillIds = [...new Set([...(skillIds ?? []), ...persistedSkills])];
+      // Resolve all applicable skill scopes. Explicit chat/project bindings take
+      // precedence over global bindings, including explicit disables.
+      const effectiveSkills = await aiSkillRepository.effectiveSkillIds(options.conversationId, effectiveProjectId);
+      skillIds = [...new Set([...(skillIds ?? []), ...effectiveSkills])];
     } catch {
       // Optional context must never make the core chat unavailable.
     }
