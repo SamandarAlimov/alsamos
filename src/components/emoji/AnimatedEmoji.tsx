@@ -3,15 +3,13 @@ import { cn } from '@/lib/utils';
 import { animatedEmojiUrls } from '@/lib/animatedEmoji';
 import { alsamosStaticEmojiUrl } from '@/lib/alsamosStaticEmoji';
 import { useAlsamosEmojiPlayback } from '@/lib/alsamosEmojiPlayback';
+import { resolveAlsamosEmojiRenderer } from '@/lib/alsamosEmojiRenderer';
 
 interface AnimatedEmojiProps {
   emoji: string;
-  /** Rendered pixel size. */
   size?: number;
   className?: string;
-  /** Animate the Alsamos pilot asset when hovered. */
   playOnHover?: boolean;
-  /** Play one Alsamos animation cycle when the asset is clicked. */
   playOnClick?: boolean;
   title?: string;
 }
@@ -19,10 +17,9 @@ interface AnimatedEmojiProps {
 /**
  * Unified emoji renderer.
  *
- * Alsamos-owned artwork is always preferred. Its static SVG is the canonical
- * idle state; playback is layered on top without replacing the source asset.
- * Non-owned emoji retain the existing animated fallback until their original
- * Alsamos artwork is produced.
+ * Alsamos-owned artwork is always preferred. The static SVG is the canonical
+ * idle state. Animation is selected through the renderer adapter so the UI
+ * never depends directly on a Lottie implementation.
  */
 export function AnimatedEmoji({
   emoji,
@@ -38,6 +35,11 @@ export function AnimatedEmoji({
   const [failed, setFailed] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
   const playback = useAlsamosEmojiPlayback(emoji);
+  const renderer = resolveAlsamosEmojiRenderer({
+    emoji,
+    size,
+    animate: playback.state === 'playing',
+  });
 
   useEffect(() => {
     setIndex(0);
@@ -45,7 +47,12 @@ export function AnimatedEmoji({
   }, [emoji]);
 
   useEffect(() => {
-    if (!alsamosStaticUrl || playback.state !== 'playing' || !imageRef.current) return;
+    if (!renderer || renderer.renderer !== 'web-animation' || !imageRef.current) return;
+
+    if (playback.state !== 'playing') {
+      imageRef.current.getAnimations().forEach((animation) => animation.cancel());
+      return;
+    }
 
     const animation = imageRef.current.animate(
       [
@@ -55,11 +62,15 @@ export function AnimatedEmoji({
         { transform: 'scale(1.05) rotate(-2deg)', offset: 0.78 },
         { transform: 'scale(1) rotate(0deg)', offset: 1 },
       ],
-      { duration: 900, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'both' },
+      {
+        duration: renderer.durationMs,
+        easing: 'cubic-bezier(.22,.61,.36,1)',
+        fill: 'both',
+      },
     );
 
     return () => animation.cancel();
-  }, [alsamosStaticUrl, playback.state]);
+  }, [playback.state, renderer]);
 
   if (alsamosStaticUrl) {
     const play = () => playback.play();
