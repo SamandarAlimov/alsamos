@@ -1,0 +1,20 @@
+import { supabase } from '@/lib/supabase';
+import type { AIArtifact, AIProject, AIConnector, AISkill, AIAgentTask } from './aiWorkspaceArchitecture';
+
+const projectFromRow = (r: any): AIProject => ({ id: r.id, ownerId: r.owner_id, name: r.name, icon: r.icon ?? undefined, color: r.color ?? undefined, instructions: r.instructions ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at });
+const artifactFromRow = (r: any): AIArtifact => ({ id: r.id, ownerId: r.owner_id, conversationId: r.conversation_id ?? undefined, projectId: r.project_id ?? undefined, type: r.type, title: r.title, version: r.version, mimeType: r.mime_type, storagePath: r.storage_path ?? undefined, previewUrl: r.preview_url ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at });
+const connectorFromRow = (r: any): AIConnector => ({ id: r.id, ownerId: r.owner_id, kind: r.kind, displayName: r.display_name, connected: r.connected, accountLabel: r.account_label ?? undefined, updatedAt: r.updated_at });
+const taskFromRow = (r: any): AIAgentTask => ({ id: r.id, conversationId: r.conversation_id, title: r.title, status: r.status, steps: Array.isArray(r.steps) ? r.steps : [], requiresConfirmation: r.requires_confirmation, createdAt: r.created_at, updatedAt: r.updated_at });
+
+function assertOk(error: { message?: string } | null): void { if (error) throw new Error(error.message || 'AI workspace request failed'); }
+
+export const aiWorkspaceRepository = {
+  async listProjects(): Promise<AIProject[]> { const { data, error } = await supabase.from('ai_projects').select('*').order('updated_at', { ascending: false }); assertOk(error); return (data ?? []).map(projectFromRow); },
+  async createProject(input: Pick<AIProject, 'name'> & Partial<Pick<AIProject, 'icon' | 'color' | 'instructions'>>): Promise<AIProject> { const { data: user } = await supabase.auth.getUser(); if (!user.user) throw new Error('Authentication required'); const { data, error } = await supabase.from('ai_projects').insert({ owner_id: user.user.id, name: input.name.trim(), icon: input.icon ?? null, color: input.color ?? null, instructions: input.instructions ?? null }).select().single(); assertOk(error); return projectFromRow(data); },
+  async updateProject(id: string, patch: Partial<Pick<AIProject, 'name' | 'icon' | 'color' | 'instructions'>>): Promise<AIProject> { const updates: Record<string, unknown> = {}; if (patch.name !== undefined) updates.name = patch.name.trim(); if (patch.icon !== undefined) updates.icon = patch.icon; if (patch.color !== undefined) updates.color = patch.color; if (patch.instructions !== undefined) updates.instructions = patch.instructions; const { data, error } = await supabase.from('ai_projects').update(updates).eq('id', id).select().single(); assertOk(error); return projectFromRow(data); },
+  async deleteProject(id: string): Promise<void> { const { error } = await supabase.from('ai_projects').delete().eq('id', id); assertOk(error); },
+  async listArtifacts(projectId?: string): Promise<AIArtifact[]> { let q = supabase.from('ai_artifacts').select('*').order('updated_at', { ascending: false }); if (projectId) q = q.eq('project_id', projectId); const { data, error } = await q; assertOk(error); return (data ?? []).map(artifactFromRow); },
+  async listConnectors(): Promise<AIConnector[]> { const { data, error } = await supabase.from('ai_connectors').select('*').order('display_name'); assertOk(error); return (data ?? []).map(connectorFromRow); },
+  async listSkills(): Promise<AISkill[]> { const { data, error } = await supabase.from('ai_skills').select('*').order('name'); assertOk(error); return (data ?? []) as AISkill[]; },
+  async listTasks(conversationId?: string): Promise<AIAgentTask[]> { let q = supabase.from('ai_tasks').select('*').order('created_at', { ascending: false }); if (conversationId) q = q.eq('conversation_id', conversationId); const { data, error } = await q; assertOk(error); return (data ?? []).map(taskFromRow); },
+};
