@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { aiGatewayClient, type AIStreamEvent, type AIGenerateRequest, type AIRoute } from './aiGatewayClient';
 import { detectIntent } from './aiIntent';
+import { aiMemoryRepository } from './aiMemoryRepository';
+import { aiWorkspaceRepository } from './aiWorkspaceRepository';
 
 export interface AIConversationMessage { id: string; role: 'user' | 'assistant'; content: string; status?: 'streaming' | 'completed' | 'error'; route?: AIRoute; artifactId?: string; taskId?: string; error?: { message: string; retryable: boolean } }
-export interface SendAIMessageOptions { conversationId?: string; projectId?: string; modelMode?: AIGenerateRequest['modelMode']; skillIds?: string[]; attachments?: AIGenerateRequest['attachments'] }
+export interface SendAIMessageOptions { conversationId?: string; projectId?: string; modelMode?: AIGenerateRequest['modelMode']; skillIds?: string[]; attachments?: AIGenerateRequest['attachments']; memoryContext?: string[] }
 export interface AIConversationControllerState { messages: AIConversationMessage[]; busy: boolean; error: string | null; activeRoute: AIRoute | null; artifactIds: string[]; taskIds: string[] }
 
 const makeId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
@@ -13,11 +15,13 @@ export function useAIConversationController() {
   const [state, setState] = useState<AIConversationControllerState>(idleState);
   const abortRef = useRef<AbortController | null>(null);
   const selectedProjectRef = useRef<string | null>(null);
+  const selectedProjectInstructionsRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const onProjectSelected = (event: Event) => {
-      const projectId = (event as CustomEvent<{ projectId?: string }>).detail?.projectId;
-      if (projectId) selectedProjectRef.current = projectId;
+      const detail = (event as CustomEvent<{ projectId?: string | null; instructions?: string | null }>).detail;
+      selectedProjectRef.current = detail?.projectId ?? null;
+      selectedProjectInstructionsRef.current = detail?.instructions?.trim() || undefined;
     };
     window.addEventListener('alsamos:select-ai-project', onProjectSelected);
     return () => window.removeEventListener('alsamos:select-ai-project', onProjectSelected);
@@ -51,7 +55,24 @@ export function useAIConversationController() {
     const detected = detectIntent(text);
     const hintedRoute: AIRoute = detected.intent === 'image' ? 'image' : 'chat';
     const effectiveProjectId = options.projectId ?? selectedProjectRef.current ?? undefined;
-    const base = { message: detected.prompt, conversationId: options.conversationId, projectId: effectiveProjectId, modelMode: options.modelMode, hintedRoute, attachments: options.attachments };
+    let projectInstructions = selectedProjectInstructionsRef.current;
+    let memoryContext = options.memoryContext;
+
+    try {
+      if (effectiveProjectId && !projectInstructions) {
+        const project = await aiWorkspaceRepository.getProject(effectiveProjectId);
+        projectInstructions = project?.instructions?.trim() || undefined;
+      }
+      if (!memoryContext) {
+        memoryContext = await aiMemoryRepository.enabledContext(30);
+      }
+    } catch {
+      // Memory/project context is an enhancement; generation remains available if context retrieval fails.
+    }
+
+    if (controller.signal.aborted) return;
+
+    const base = { message: detected.prompt, conversationId: options.conversationId, projectId: effectiveProjectId, projectInstructions, memoryContext, modelMode: options.modelMode, hintedRoute, attachments: options.attachments };
     setState((s) => ({ ...s, busy: true, error: null, activeRoute: hintedRoute, messages: [...s.messages, { id: makeId('user'), role: 'user', content: message, status: 'completed' }, { id: assistantId, role: 'assistant', content: '', status: 'streaming', route: hintedRoute }] }));
     try {
       const intent = await aiGatewayClient.detectIntent(base, controller.signal);
