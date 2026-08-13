@@ -13,4 +13,5 @@ export interface AIConversation {
   messages: AIMessage[];
   updatedAt: Date;
   pinned?: boolean;
+  projectId?: string | null;
 }
