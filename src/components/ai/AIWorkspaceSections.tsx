@@ -1,14 +1,15 @@
-import { ChevronDown, ChevronRight, FolderKanban, Package, PlugZap, Wrench, ArrowUpRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, FolderKanban, Package, PlugZap, Wrench, Brain, ArrowUpRight } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
-type WorkspaceKey = 'projects' | 'artifacts' | 'connectors' | 'skills';
+type WorkspaceKey = 'projects' | 'artifacts' | 'connectors' | 'skills' | 'memory';
 
 const sections: Array<{ key: WorkspaceKey; label: string; icon: typeof FolderKanban; description: string }> = [
   { key: 'projects', label: 'Projects', icon: FolderKanban, description: 'Loyihalar, chatlar va custom instructions' },
   { key: 'artifacts', label: 'Artifacts', icon: Package, description: 'Hujjatlar, kod, rasmlar va fayllar' },
   { key: 'connectors', label: 'Connectors', icon: PlugZap, description: 'Google, GitHub, Notion va Alsamos' },
   { key: 'skills', label: 'Plugins / Skills', icon: Wrench, description: 'AI imkoniyatlarini kengaytiruvchi skilllar' },
+  { key: 'memory', label: 'Memory', icon: Brain, description: 'AI eslab qoladigan shaxsiy maʼlumotlar' },
 ];
 
 export function AIWorkspaceSections() {
@@ -25,8 +26,7 @@ function WorkspaceSection({ workspaceKey, icon, label, description }: { workspac
   const storageKey = `alsamos.ai.section.${workspaceKey}`;
   const [open, setOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
-    const saved = localStorage.getItem(storageKey);
-    return saved === '1';
+    return localStorage.getItem(storageKey) === '1';
   });
 
   const toggle = () => setOpen((value) => {
