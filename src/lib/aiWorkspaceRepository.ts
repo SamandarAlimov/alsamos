@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import type { AIArtifact, AIProject, AIConnector, AISkill, AIAgentTask } from './aiWorkspaceArchitecture';
 
 const projectFromRow = (r: any): AIProject => ({ id: r.id, ownerId: r.owner_id, name: r.name, icon: r.icon ?? undefined, color: r.color ?? undefined, instructions: r.instructions ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at });
