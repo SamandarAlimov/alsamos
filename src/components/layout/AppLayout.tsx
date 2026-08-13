@@ -36,7 +36,7 @@ export function AppLayout() {
       {!isAIWorkspace && <AppSidebar />}
       {!hideHeaderOnPages && <MobileHeader />}
       <main className={cn('flex-1 min-w-0 overflow-auto md:ml-0 md:pt-0 md:pb-0', hideHeaderOnPages ? 'pt-0' : 'pt-14', immersiveRoute ? 'pb-0' : 'pb-20', isAIWorkspace && 'h-dvh overflow-hidden')}>
-        <Outlet />
+        {isAIWorkspace ? <div className="h-full min-h-0 [&>div]:!h-dvh"><Outlet /></div> : <Outlet />}
       </main>
       {!immersiveRoute && <BottomNavbar />}
       {!isAIWorkspace && <LocationPermissionDialog />}
