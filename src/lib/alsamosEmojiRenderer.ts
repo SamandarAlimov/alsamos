@@ -1,5 +1,5 @@
 import { getAlsamosEmojiAnimationAsset } from './alsamosEmojiAnimation';
-import { getAlsamosEmojiLottieAsset } from './alsamosEmojiLottie';
+import { getAlsamosLottieAsset } from './alsamosEmojiLottie';
 import { getAlsamosEmojiMotion } from './alsamosEmojiMotion';
 
 export type AlsamosEmojiRendererKind = 'static' | 'web-animation' | 'lottie';
@@ -22,17 +22,13 @@ export interface AlsamosEmojiRenderResult {
   loop: false;
 }
 
-/**
- * Single renderer decision point. The UI never inspects Lottie files or motion
- * presets directly. Static SVG remains the visual authority for idle state.
- */
 export function resolveAlsamosEmojiRenderer(
   request: AlsamosEmojiRenderRequest,
 ): AlsamosEmojiRenderResult | undefined {
   const asset = getAlsamosEmojiAnimationAsset(request.emoji);
   if (!asset) return undefined;
 
-  const lottie = getAlsamosEmojiLottieAsset(request.emoji);
+  const lottie = getAlsamosLottieAsset(request.emoji);
   const motion = getAlsamosEmojiMotion(request.emoji);
   const renderer = !request.animate
     ? 'static'
