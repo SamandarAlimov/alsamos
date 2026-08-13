@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { animatedEmojiUrls } from '@/lib/animatedEmoji';
+import { alsamosStaticEmojiUrl } from '@/lib/alsamosStaticEmoji';
 
 interface AnimatedEmojiProps {
   emoji: string;
@@ -13,8 +14,12 @@ interface AnimatedEmojiProps {
 }
 
 /**
- * Renders a Telegram-style animated emoji. Falls back to the native glyph
- * when no animation exists for the codepoint.
+ * Renders an emoji using the Alsamos original static artwork when one exists.
+ *
+ * The static artwork is the canonical idle state. Non-pilot emoji retain the
+ * existing animated asset fallback until their original Alsamos artwork is
+ * produced. This keeps the rollout incremental without replacing the whole
+ * catalog with platform-native glyphs.
  */
 export function AnimatedEmoji({
   emoji,
@@ -23,6 +28,7 @@ export function AnimatedEmoji({
   playOnHover = false,
   title,
 }: AnimatedEmojiProps) {
+  const alsamosStaticUrl = alsamosStaticEmojiUrl(emoji);
   const candidates = useMemo(() => animatedEmojiUrls(emoji), [emoji]);
   const [index, setIndex] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -31,6 +37,25 @@ export function AnimatedEmoji({
     setIndex(0);
     setFailed(false);
   }, [emoji]);
+
+  if (alsamosStaticUrl) {
+    return (
+      <img
+        src={alsamosStaticUrl}
+        alt={emoji}
+        title={title}
+        draggable={false}
+        width={size}
+        height={size}
+        className={cn(
+          'inline-block object-contain select-none',
+          playOnHover && 'transition-transform duration-150 hover:scale-110',
+          className,
+        )}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
 
   if (failed) {
     return (
@@ -60,7 +85,7 @@ export function AnimatedEmoji({
       className={cn(
         'inline-block object-contain select-none',
         playOnHover && 'transition-transform duration-150 hover:scale-110',
-        className
+        className,
       )}
       style={{ width: size, height: size }}
     />
