@@ -1,0 +1,14 @@
+/* Marketplace desktop density: the existing page uses lg:grid-cols-4.
+   At wide desktop widths the catalog should consume the available content width
+   instead of leaving a large unused right-side column. */
+@media (min-width: 1280px) {
+  [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  [class~="lg:grid-cols-4"][class~="grid"][class~="gap-3"] {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
