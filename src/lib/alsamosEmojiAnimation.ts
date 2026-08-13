@@ -1,11 +1,12 @@
 import { alsamosStaticEmojiUrl } from './alsamosStaticEmoji';
+import { getAlsamosEmojiMotion } from './alsamosEmojiMotion';
 
 /**
- * Transport-agnostic animation contract.
+ * Transport-agnostic animation asset contract.
  *
- * The UI must not know whether an animation is backed by Lottie, Web Animations
- * or another renderer. Production Lottie assets can be registered here later
- * without changing AnimatedEmoji's asset-selection contract.
+ * The UI does not know whether an animation is backed by Lottie, Web
+ * Animations, or another renderer. Motion timing comes from one central
+ * registry so lifecycle and renderer durations cannot drift apart.
  */
 export interface AlsamosEmojiAnimationAsset {
   emoji: string;
@@ -15,24 +16,14 @@ export interface AlsamosEmojiAnimationAsset {
   loop: false;
 }
 
-const DURATIONS: Record<string, number> = {
-  '😀': 900,
-  '😂': 1000,
-  '😍': 1000,
-  '😇': 950,
-  '🎉': 1200,
-};
-
-export function getAlsamosEmojiAnimationAsset(
-  emoji: string,
-): AlsamosEmojiAnimationAsset | undefined {
+export function getAlsamosEmojiAnimationAsset(emoji: string): AlsamosEmojiAnimationAsset | undefined {
   const staticUrl = alsamosStaticEmojiUrl(emoji);
   if (!staticUrl) return undefined;
 
   return {
     emoji,
     staticUrl,
-    durationMs: DURATIONS[emoji] ?? 900,
+    durationMs: getAlsamosEmojiMotion(emoji)?.durationMs ?? 900,
     loop: false,
   };
 }
