@@ -91,6 +91,7 @@ jobs:
             sudo k3s kubectl apply -f /tmp/alsamos-frontend-apps.yaml
             sudo k3s kubectl apply -f /tmp/alsamos-alsamos-id.yaml
             sudo k3s kubectl apply -f /tmp/alsamos-alsamos-gateway.yaml
+            sudo k3s kubectl delete ingress ai-gateway -n apps --ignore-not-found
             sudo k3s kubectl apply -f /tmp/alsamos-ai-gateway.yaml
             sudo k3s kubectl -n apps rollout status deployment/social-web --timeout=180s
             sudo k3s kubectl -n apps rollout status deployment/accounts-web --timeout=180s
