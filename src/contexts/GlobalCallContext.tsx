@@ -30,49 +30,55 @@ export function GlobalCallProvider({ children }: { children: React.ReactNode }) 
   const navigate = useNavigate();
   const location = useLocation();
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
-  const [handledCallIds, setHandledCallIds] = useState<Set<string>>(new Set());
-  const callSoundRef = useRef<AudioContext | null>(null);
+  const handledCallIdsRef = useRef<Set<string>>(new Set());
+  const incomingCallIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    incomingCallIdRef.current = incomingCall?.id ?? null;
+  }, [incomingCall]);
 
   const handleCallHandled = useCallback((callId: string) => {
-    setHandledCallIds(prev => new Set([...prev, callId]));
-    if (incomingCall?.id === callId) {
-      setIncomingCall(null);
-    }
-  }, [incomingCall]);
+    handledCallIdsRef.current.add(callId);
+    setIncomingCall((prev) => (prev?.id === callId ? null : prev));
+  }, []);
 
   const acceptCall = useCallback(() => {
     if (incomingCall) {
       handleCallHandled(incomingCall.id);
-      // Navigate to messages with call info
       navigate(`/messages?call=${incomingCall.id}&type=${incomingCall.call_type}`);
     }
   }, [incomingCall, handleCallHandled, navigate]);
 
   const declineCall = useCallback(async () => {
-    if (incomingCall) {
-      // Update call status to declined
+    if (!incomingCall) return;
+    const callId = incomingCall.id;
+    try {
+      if (user?.id) {
+        await supabase
+          .from('call_participants')
+          .update({ left_at: new Date().toISOString() })
+          .eq('call_id', callId)
+          .eq('user_id', user.id);
+      }
       await supabase
         .from('video_calls')
-        .update({ status: 'ended' })
-        .eq('id', incomingCall.id);
-      
-      handleCallHandled(incomingCall.id);
+        .update({ status: 'declined', ended_at: new Date().toISOString() })
+        .eq('id', callId)
+        .in('status', ['ringing', 'waiting', 'active']);
+    } catch (err) {
+      console.error('[GlobalCall] decline failed', err);
     }
-  }, [incomingCall, handleCallHandled]);
+    handleCallHandled(callId);
+  }, [incomingCall, handleCallHandled, user?.id]);
 
-  // Listen for incoming calls globally
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     const channel = supabase
-      .channel('global-incoming-calls')
+      .channel(`global-incoming-calls:${user.id}`)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'video_calls',
-        },
+        { event: 'INSERT', schema: 'public', table: 'video_calls' },
         async (payload) => {
           const newCall = payload.new as {
             id: string;
@@ -84,33 +90,39 @@ export function GlobalCallProvider({ children }: { children: React.ReactNode }) 
 
           console.log('[GlobalCall] New call detected:', newCall);
 
-          // Skip if it's our own call or already handled
-          if (newCall.host_id === user.id || handledCallIds.has(newCall.id)) {
-            console.log('[GlobalCall] Skipping - our call or already handled');
-            return;
-          }
+          if (newCall.host_id === user.id || handledCallIdsRef.current.has(newCall.id)) return;
+          if (['ended', 'declined', 'missed'].includes(newCall.status)) return;
 
-          // Check if we're a participant in this conversation
-          const { data: participant } = await supabase
-            .from('conversation_participants')
+          const { data: callMember } = await supabase
+            .from('call_participants')
             .select('id')
-            .eq('conversation_id', newCall.conversation_id)
+            .eq('call_id', newCall.id)
             .eq('user_id', user.id)
             .maybeSingle();
 
-          if (!participant) {
-            console.log('[GlobalCall] Not a participant in this conversation');
-            return;
+          if (!callMember) {
+            const { data: convMembers } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', newCall.conversation_id);
+
+            const memberIds = (convMembers || []).map((m) => m.user_id);
+            const isDirectOther =
+              memberIds.length === 2 &&
+              memberIds.includes(user.id) &&
+              memberIds.includes(newCall.host_id);
+
+            if (!isDirectOther) {
+              console.log('[GlobalCall] Not invitee / not 1:1 peer — skip');
+              return;
+            }
           }
 
-          // Fetch caller's profile
           const { data: hostProfile } = await supabase
             .from('profiles')
             .select('display_name, username, avatar_url')
             .eq('id', newCall.host_id)
             .single();
-
-          console.log('[GlobalCall] Incoming call from:', hostProfile);
 
           setIncomingCall({
             id: newCall.id,
@@ -123,42 +135,27 @@ export function GlobalCallProvider({ children }: { children: React.ReactNode }) 
       )
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'video_calls',
-        },
+        { event: 'UPDATE', schema: 'public', table: 'video_calls' },
         (payload) => {
           const updatedCall = payload.new as { id: string; status: string };
-          
-          console.log('[GlobalCall] Call updated:', updatedCall.id, 'status:', updatedCall.status);
-          
-          // If call ended, dismiss the notification immediately
-          if (updatedCall.status === 'ended') {
-            if (incomingCall?.id === updatedCall.id) {
-              console.log('[GlobalCall] Incoming call ended, dismissing');
-              setIncomingCall(null);
-            }
-            // Also mark as handled to prevent any stale state
-            setHandledCallIds(prev => new Set([...prev, updatedCall.id]));
+          if (['ended', 'declined', 'missed'].includes(updatedCall.status)) {
+            handledCallIdsRef.current.add(updatedCall.id);
+            if (incomingCallIdRef.current === updatedCall.id) setIncomingCall(null);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => console.log('[GlobalCall] channel status', status));
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, handledCallIds, incomingCall]);
+  }, [user?.id]);
 
-  // Don't show dialog if already on messages page (it handles its own calls)
   const showDialog = incomingCall && location.pathname !== '/messages';
 
   return (
     <GlobalCallContext.Provider value={{ incomingCall, handleCallHandled, acceptCall, declineCall }}>
       {children}
-      
-      {/* Global incoming call dialog */}
       {showDialog && (
         <IncomingCallDialog
           isOpen={true}
