@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -14,38 +14,52 @@ interface IncomingCall {
   } | null;
 }
 
+/** Rings only explicit call invitees / 1:1 peers — not every group member. */
 export function useIncomingCalls() {
   const { user } = useAuth();
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
-  const [activeCallIds, setActiveCallIds] = useState<Set<string>>(new Set());
-
-  // Track calls that we've already handled (accepted/declined/created by us)
-  const handleCallHandled = useCallback((callId: string) => {
-    setActiveCallIds(prev => new Set([...prev, callId]));
-    if (incomingCall?.id === callId) {
-      setIncomingCall(null);
-    }
-  }, [incomingCall]);
-
-  const declineCall = useCallback(() => {
-    if (incomingCall) {
-      handleCallHandled(incomingCall.id);
-    }
-  }, [incomingCall, handleCallHandled]);
+  const handledRef = useRef<Set<string>>(new Set());
+  const incomingIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    incomingIdRef.current = incomingCall?.id ?? null;
+  }, [incomingCall]);
 
-    // Subscribe to new video calls
+  const handleCallHandled = useCallback((callId: string) => {
+    handledRef.current.add(callId);
+    setIncomingCall((prev) => (prev?.id === callId ? null : prev));
+  }, []);
+
+  const declineCall = useCallback(async () => {
+    if (!incomingCall) return;
+    const callId = incomingCall.id;
+    try {
+      if (user?.id) {
+        await supabase
+          .from('call_participants')
+          .update({ left_at: new Date().toISOString() })
+          .eq('call_id', callId)
+          .eq('user_id', user.id);
+      }
+      await supabase
+        .from('video_calls')
+        .update({ status: 'declined', ended_at: new Date().toISOString() })
+        .eq('id', callId)
+        .in('status', ['ringing', 'waiting', 'active']);
+    } catch (err) {
+      console.error('[IncomingCalls] decline failed', err);
+    }
+    handleCallHandled(callId);
+  }, [incomingCall, handleCallHandled, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
     const channel = supabase
-      .channel('incoming-calls')
+      .channel(`incoming-calls:${user.id}`)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'video_calls',
-        },
+        { event: 'INSERT', schema: 'public', table: 'video_calls' },
         async (payload) => {
           const newCall = payload.new as {
             id: string;
@@ -55,35 +69,41 @@ export function useIncomingCalls() {
             status: string;
           };
 
-          console.log('New call detected:', newCall);
+          console.log('[IncomingCalls] New call detected:', newCall);
 
-          // Skip if it's our own call or already handled
-          if (newCall.host_id === user.id || activeCallIds.has(newCall.id)) {
-            console.log('Skipping - our call or already handled');
-            return;
-          }
+          if (newCall.host_id === user.id || handledRef.current.has(newCall.id)) return;
+          if (['ended', 'declined', 'missed'].includes(newCall.status)) return;
 
-          // Check if we're a participant in this conversation
-          const { data: participant } = await supabase
-            .from('conversation_participants')
+          const { data: callMember } = await supabase
+            .from('call_participants')
             .select('id')
-            .eq('conversation_id', newCall.conversation_id)
+            .eq('call_id', newCall.id)
             .eq('user_id', user.id)
             .maybeSingle();
 
-          if (!participant) {
-            console.log('Not a participant in this conversation');
-            return;
+          if (!callMember) {
+            const { data: convMembers } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', newCall.conversation_id);
+
+            const memberIds = (convMembers || []).map((m) => m.user_id);
+            const isDirectOther =
+              memberIds.length === 2 &&
+              memberIds.includes(user.id) &&
+              memberIds.includes(newCall.host_id);
+
+            if (!isDirectOther) {
+              console.log('[IncomingCalls] Not invitee / not 1:1 peer — skip');
+              return;
+            }
           }
 
-          // Fetch caller's profile
           const { data: hostProfile } = await supabase
             .from('profiles')
             .select('display_name, username, avatar_url')
             .eq('id', newCall.host_id)
             .single();
-
-          console.log('Incoming call from:', hostProfile);
 
           setIncomingCall({
             id: newCall.id,
@@ -96,30 +116,21 @@ export function useIncomingCalls() {
       )
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'video_calls',
-        },
+        { event: 'UPDATE', schema: 'public', table: 'video_calls' },
         (payload) => {
           const updatedCall = payload.new as { id: string; status: string };
-          
-          // If call ended, dismiss the notification
-          if (updatedCall.status === 'ended' && incomingCall?.id === updatedCall.id) {
-            setIncomingCall(null);
+          if (['ended', 'declined', 'missed'].includes(updatedCall.status)) {
+            handledRef.current.add(updatedCall.id);
+            if (incomingIdRef.current === updatedCall.id) setIncomingCall(null);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => console.log('[IncomingCalls] channel status', status));
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeCallIds, incomingCall]);
+  }, [user?.id]);
 
-  return {
-    incomingCall,
-    handleCallHandled,
-    declineCall,
-  };
+  return { incomingCall, handleCallHandled, declineCall };
 }
