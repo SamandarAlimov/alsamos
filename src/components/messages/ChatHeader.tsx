@@ -7,6 +7,7 @@ import {
   MoreVertical, 
   Users, 
   Megaphone,
+  Radio,
   ArrowLeft,
   Info,
   Bell,
@@ -44,6 +45,8 @@ interface ChatHeaderProps {
   onBack?: () => void;
   onAudioCall: () => void;
   onVideoCall: () => void;
+  /** Channels broadcast to subscribers instead of placing mesh calls. */
+  onGoLive?: () => void;
   onSearch?: () => void;
   onViewInfo?: () => void;
   onMute?: () => void;
@@ -62,6 +65,7 @@ export function ChatHeader({
   onBack,
   onAudioCall,
   onVideoCall,
+  onGoLive,
   onSearch,
   onViewInfo,
   onMute,
@@ -81,6 +85,11 @@ export function ChatHeader({
   // Check if this is a self-chat (conversation with yourself)
   const isSelfChat = conversation.is_self_chat || 
     (conversation.type === 'private' && conversation.other_participant?.id === user?.id);
+
+  // Channels are a broadcast surface, not a mesh call surface: they must never
+  // expose 1:1/group call buttons, only the live-stream path.
+  const isChannel = conversation.type === 'channel';
+  const canCall = !isSelfChat && !isChannel;
 
   // Get real-time status for private chats (but not for self-chat)
   const otherUserId = conversation.type === 'private' && !isSelfChat ? conversation.other_participant?.id : null;
@@ -203,8 +212,14 @@ export function ChatHeader({
       </div>
       
       <div className="flex items-center gap-1">
-        {/* Hide call buttons for self-chat */}
-        {!isSelfChat && (
+        {/* Channels broadcast; only 1:1 and group chats place calls */}
+        {isChannel && onGoLive && (
+          <Button variant="ghost" size="icon" onClick={onGoLive} aria-label="Go live">
+            <Radio className="h-5 w-5 text-red-500" />
+          </Button>
+        )}
+        {/* Hide call buttons for self-chat and channels */}
+        {canCall && (
           <>
             <Button variant="ghost" size="icon" onClick={onAudioCall}>
               <Phone className="h-5 w-5 text-muted-foreground" />

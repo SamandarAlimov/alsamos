@@ -3,6 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * Maximum number of participants in a mesh (p2p) group call.
+ * Mesh scales as N*(N-1) peer connections, so this is a hard ceiling until an
+ * SFU media backend is deployed (see docs/call-architecture.md).
+ */
+export const MESH_PARTICIPANT_CAP = 8;
+
 interface VideoCallRecord {
   id: string;
   conversation_id: string | null;
@@ -11,6 +18,8 @@ interface VideoCallRecord {
   status: string;
   started_at: string | null;
   ended_at: string | null;
+  is_group_call?: boolean;
+  max_participants?: number | null;
 }
 
 interface CallParticipant {
@@ -31,6 +40,26 @@ interface CallParticipant {
   };
 }
 
+interface CreateCallOptions {
+  isGroupCall?: boolean;
+  maxParticipants?: number;
+}
+
+// The generated Supabase types are regenerated separately; the RTC RPCs and the
+// is_group_call column are addressed through this loosely typed handle.
+const db = supabase as any;
+
+function rpcErrorMessage(error: unknown): string {
+  const message = String((error as { message?: string })?.message ?? '');
+  if (message.includes('call_full')) {
+    return `This call is full (maximum ${MESH_PARTICIPANT_CAP} participants).`;
+  }
+  if (message.includes('call_ended')) return 'This call has already ended';
+  if (message.includes('call_not_found')) return 'This call no longer exists';
+  if (message.includes('not_call_host')) return 'Only the host can end the call for everyone';
+  return 'Something went wrong with the call. Please try again.';
+}
+
 export function useVideoCall() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -40,12 +69,14 @@ export function useVideoCall() {
   const [callEnded, setCallEnded] = useState(false);
   const callSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Subscribe to call status changes
+  // Subscribe to call status changes.
+  // Only a real 'ended' status tears the call down — a single participant
+  // leaving a group call no longer produces this event (see rpc_leave_video_call).
   useEffect(() => {
     if (!currentCall) return;
 
     console.log('[VideoCall] Subscribing to call status:', currentCall.id);
-    
+
     callSubscriptionRef.current = supabase
       .channel(`call_status_${currentCall.id}`)
       .on(
@@ -62,8 +93,8 @@ export function useVideoCall() {
 
           setCurrentCall(updated);
 
-          if (updated.status === 'ended') {
-            console.log('[VideoCall] Call ended by other participant');
+          if (['ended', 'declined', 'missed'].includes(updated.status)) {
+            console.log('[VideoCall] Call ended');
             setCallEnded(true);
             toast({
               title: 'Call Ended',
@@ -83,10 +114,11 @@ export function useVideoCall() {
     };
   }, [currentCall, toast]);
 
-  // Create a new video call
+  // Create a new call (1:1 or group)
   const createCall = useCallback(async (
     conversationId: string,
-    callType: 'audio' | 'video'
+    callType: 'audio' | 'video',
+    options: CreateCallOptions = {}
   ): Promise<string | null> => {
     if (!user?.id) {
       toast({
@@ -97,12 +129,16 @@ export function useVideoCall() {
       return null;
     }
 
+    const isGroupCall = options.isGroupCall ?? false;
+    const maxParticipants = isGroupCall
+      ? Math.min(options.maxParticipants ?? MESH_PARTICIPANT_CAP, MESH_PARTICIPANT_CAP)
+      : 2;
+
     setIsCreatingCall(true);
     setCallEnded(false);
 
     try {
-      // Create the video call record
-      const { data: call, error: callError } = await supabase
+      const { data: call, error: callError } = await db
         .from('video_calls')
         .insert({
           conversation_id: conversationId,
@@ -110,6 +146,8 @@ export function useVideoCall() {
           call_type: callType,
           status: 'active',
           started_at: null,
+          is_group_call: isGroupCall,
+          max_participants: maxParticipants,
         })
         .select()
         .single();
@@ -119,37 +157,31 @@ export function useVideoCall() {
         throw callError;
       }
 
-      // Add host as participant
-      const { error: participantError } = await supabase
-        .from('call_participants')
-        .insert({
-          call_id: call.id,
-          user_id: user.id,
-          is_muted: false,
-          is_video_on: callType === 'video',
-          is_screen_sharing: false,
-          is_hand_raised: false,
-        });
-
-      if (participantError) {
-        console.error('Error adding participant:', participantError);
-        await supabase.from('video_calls').delete().eq('id', call.id);
-        throw participantError;
-      }
-
-      setCurrentCall(call);
-      
-      toast({
-        title: 'Call Started',
-        description: `${callType === 'video' ? 'Video' : 'Audio'} call started`,
+      // Host joins through the same server-side path as everyone else so the
+      // participant row, cap check and call status stay consistent.
+      const { data: joined, error: joinError } = await db.rpc('rpc_join_video_call', {
+        p_call_id: call.id,
       });
 
-      return call.id;
+      if (joinError) {
+        console.error('Error joining created call:', joinError);
+        await db.from('video_calls').delete().eq('id', call.id);
+        throw joinError;
+      }
+
+      setCurrentCall((joined as VideoCallRecord) ?? (call as VideoCallRecord));
+
+      toast({
+        title: 'Call Started',
+        description: `${callType === 'video' ? 'Video' : 'Audio'} ${isGroupCall ? 'group ' : ''}call started`,
+      });
+
+      return call.id as string;
     } catch (error) {
       console.error('Failed to create call:', error);
       toast({
         title: 'Error',
-        description: 'Failed to start call. Please try again.',
+        description: rpcErrorMessage(error),
         variant: 'destructive',
       });
       return null;
@@ -158,64 +190,26 @@ export function useVideoCall() {
     }
   }, [user?.id, toast]);
 
-  // Join an existing call
+  // Join an existing call. The participant cap is enforced server-side and a
+  // full call surfaces an explicit message instead of failing silently.
   const joinCall = useCallback(async (callId: string): Promise<boolean> => {
     if (!user?.id) return false;
 
     setCallEnded(false);
 
     try {
-      // Check if call is still active
-      const { data: callData } = await supabase
-        .from('video_calls')
-        .select('*')
-        .eq('id', callId)
-        .single();
+      const { data, error } = await db.rpc('rpc_join_video_call', { p_call_id: callId });
+      if (error) throw error;
 
-      if (!callData || callData.status === 'ended') {
-        toast({
-          title: 'Call Ended',
-          description: 'This call has already ended',
-          variant: 'destructive',
-        });
-        return false;
-      }
-
-      // Check if already a participant
-      const { data: existing } = await supabase
-        .from('call_participants')
-        .select('id')
-        .eq('call_id', callId)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existing) {
-        // Update joined_at if rejoining
-        await supabase
-          .from('call_participants')
-          .update({ 
-            left_at: null,
-            joined_at: new Date().toISOString() 
-          })
-          .eq('id', existing.id);
-      } else {
-        // Add as new participant
-        await supabase
-          .from('call_participants')
-          .insert({
-            call_id: callId,
-            user_id: user.id,
-            is_muted: false,
-            is_video_on: true,
-            is_screen_sharing: false,
-            is_hand_raised: false,
-          });
-      }
-
-      setCurrentCall(callData as VideoCallRecord);
+      setCurrentCall(data as VideoCallRecord);
       return true;
     } catch (error) {
       console.error('Failed to join call:', error);
+      toast({
+        title: 'Unable to join call',
+        description: rpcErrorMessage(error),
+        variant: 'destructive',
+      });
       return false;
     }
   }, [user?.id, toast]);
@@ -227,7 +221,14 @@ export function useVideoCall() {
     setCallEnded(false);
   }, []);
 
-  // Leave call - updates database and ends call if last participant
+  /**
+   * Leave the call for THIS client only.
+   *
+   * The server decides whether the call itself ends:
+   *  - 1:1 call            -> call ends for both sides (unchanged behaviour)
+   *  - group call, others still connected -> call continues without this user
+   *  - group call, last participant leaves -> call ends
+   */
   const leaveCall = useCallback(async () => {
     if (!currentCall || !user?.id) return;
 
@@ -235,31 +236,33 @@ export function useVideoCall() {
     console.log('[VideoCall] Leaving call:', callId);
 
     try {
-      // Update participant record
-      await supabase
-        .from('call_participants')
-        .update({ left_at: new Date().toISOString() })
-        .eq('call_id', callId)
-        .eq('user_id', user.id);
-
-      // Always end the call when someone leaves in 1:1 calls
-      // This ensures both users are notified via realtime
-      await supabase
-        .from('video_calls')
-        .update({ 
-          status: 'ended',
-          ended_at: new Date().toISOString() 
-        })
-        .eq('id', callId);
-
-      console.log('[VideoCall] Call marked as ended');
-
-      // Don't reset state here - let the caller handle cleanup
-      // This prevents race conditions with the realtime subscription
+      const { error } = await db.rpc('rpc_leave_video_call', { p_call_id: callId });
+      if (error) throw error;
+      console.log('[VideoCall] Left call (server decided whether the call ends)');
     } catch (error) {
       console.error('Error leaving call:', error);
     }
   }, [currentCall, user?.id]);
+
+  /** Host-only: end the call for every participant. */
+  const endCallForEveryone = useCallback(async () => {
+    if (!currentCall || !user?.id) return;
+    if (currentCall.host_id !== user.id) return;
+
+    try {
+      const { error } = await db.rpc('rpc_end_video_call_for_everyone', {
+        p_call_id: currentCall.id,
+      });
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error ending call for everyone:', error);
+      toast({
+        title: 'Error',
+        description: rpcErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  }, [currentCall, user?.id, toast]);
 
   // Update participant media state in database
   const updateMediaState = useCallback(async (
@@ -271,7 +274,7 @@ export function useVideoCall() {
     if (!currentCall || !user?.id) return;
 
     try {
-      await supabase
+      await db
         .from('call_participants')
         .update({
           is_muted: isMuted,
@@ -291,7 +294,7 @@ export function useVideoCall() {
     if (!currentCall) return [];
 
     try {
-      const { data } = await supabase
+      const { data } = await db
         .from('call_participants')
         .select(`
           *,
@@ -344,9 +347,11 @@ export function useVideoCall() {
     callParticipants,
     isCreatingCall,
     callEnded,
+    isGroupCall: currentCall?.is_group_call ?? false,
     createCall,
     joinCall,
     leaveCall,
+    endCallForEveryone,
     resetCallState,
     updateMediaState,
     fetchParticipants,

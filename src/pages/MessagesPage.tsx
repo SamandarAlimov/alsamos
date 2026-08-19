@@ -34,6 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 // Components
 import { ChatListItem } from '@/components/messages/ChatListItem';
 import { ChatHeader } from '@/components/messages/ChatHeader';
+import { LiveStreamBroadcast } from '@/components/live/LiveStreamBroadcast';
 import { EnhancedMessageBubble } from '@/components/messages/EnhancedMessageBubble';
 import { MessageInput } from '@/components/messages/MessageInput';
 import { CreateChatDialog } from '@/components/messages/CreateChatDialog';
@@ -137,6 +138,7 @@ export default function MessagesPage() {
   // Scheduled messages
   const { scheduleMessage, scheduledMessages } = useScheduledMessages(selectedConversation?.id || undefined);
   const [showScheduledMessages, setShowScheduledMessages] = useState(false);
+  const [showLiveBroadcast, setShowLiveBroadcast] = useState(false);
 
   // Self-chat (saved messages)
   const { getOrCreateSelfChat, isCreating: isCreatingSelfChat } = useSelfChat();
@@ -722,10 +724,18 @@ export default function MessagesPage() {
       return;
     }
 
+    // Channels broadcast to subscribers; they never open mesh call sessions.
+    if (selectedConversation.type === 'channel') {
+      setShowLiveBroadcast(true);
+      return;
+    }
+
     setCallType(type);
-    
+
+    const isGroupCall = selectedConversation.type === 'group';
+
     // Create call record in database for authorization
-    const callId = await createCall(selectedConversation.id, type);
+    const callId = await createCall(selectedConversation.id, type, { isGroupCall });
     if (callId) {
       handleCallHandled(callId); // Mark as handled so we don't get incoming notification
       setActiveCallId(callId);
@@ -1273,6 +1283,7 @@ export default function MessagesPage() {
                   onBack={() => setShowMobileChat(false)}
                   onAudioCall={() => startCall('audio')}
                   onVideoCall={() => startCall('video')}
+                  onGoLive={selectedConversation.type === 'channel' ? () => setShowLiveBroadcast(true) : undefined}
                   onSearch={() => setShowMessageSearch(true)}
                   onViewInfo={() => {}}
                   onManageMembers={selectedConversation.type === 'group' ? () => setShowMemberManagement(true) : undefined}
@@ -1575,6 +1586,9 @@ export default function MessagesPage() {
         <GroupMemberManagement open={showMemberManagement} onOpenChange={setShowMemberManagement} conversationId={selectedConversation.id} conversationName={selectedConversation.name || undefined} isAdmin={selectedConversation.owner_id === user?.id} />
       )}
       <ScheduledMessagesSheet open={showScheduledMessages} onOpenChange={setShowScheduledMessages} conversationId={selectedConversation?.id} />
+      {showLiveBroadcast && (
+        <LiveStreamBroadcast onClose={() => setShowLiveBroadcast(false)} />
+      )}
       <CreateChannelDialog open={showCreateChannelDialog} onOpenChange={setShowCreateChannelDialog} onCreateChannel={createChannel} />
     </div>
   );
